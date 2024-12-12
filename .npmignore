@@ -1,0 +1,48 @@
+# Source files
+src/
+tests/
+examples/
+
+# Config files
+.gitignore
+.eslintrc*
+.prettierrc
+.babelrc
+rollup.config.js
+tsconfig.json
+jest.config.js
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Test files
+__tests__/
+*.test.js
+*.spec.js
+coverage/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Development files
+.env*
+.husky/
+.github/
+.travis.yml
+.gitlab-ci.yml
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Cache directories
+.npm/
+.eslintcache
+.cache/ 
