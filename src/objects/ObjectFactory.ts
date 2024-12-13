@@ -38,12 +38,6 @@ export class ObjectFactory {
             obj.setCoords(options.coordinates);
         }
 
-        console.log('Created box object:', {
-            position: obj.position,
-            scale: obj.scale,
-            rotation: obj.rotation
-        });
-
         return this.setupObject(obj, options);
     }
 

@@ -4,7 +4,7 @@ import { CameraSync } from './CameraSync';
 import { ObjectFactory } from '../objects/ObjectFactory';
 import { AnimationManager } from '../animation/AnimationManager';
 import { EventManager } from '../events/EventManager';
-import { RenderManager } from '../render/RenderManager';
+import { RenderManager } from './RenderManager';
 import { GeoUtils } from '../utils/GeoUtils';
 import { 
     MapboxThreeOptions, 
@@ -17,75 +17,61 @@ import {
 } from '../types';
 
 /**
- * MapboxThree - Main class for integrating Three.js with Mapbox GL JS
+ * MapboxThree - 整合 Three.js 和 Mapbox GL JS 的主类
  */
 export class MapboxThree {
-    private map: Map;
-    private context: WebGLRenderingContext;
-    private options: Required<MapboxThreeOptions>;
+    // 基础属性不再是只读的
+    private map!: Map;
+    private context!: WebGLRenderingContext;
+    private options!: Required<MapboxThreeOptions>;
     
-    // Core components
-    private renderManager: RenderManager;
-    private cameraSync: CameraSync;
-    private objectFactory: ObjectFactory;
-    private animationManager: AnimationManager;
-    private eventManager: EventManager;
+    // 管理器和场景对象保持现状
+    private renderManager!: RenderManager;
+    private cameraSync!: CameraSync;
+    private objectFactory!: ObjectFactory;
+    private animationManager!: AnimationManager;
+    private eventManager!: EventManager;
 
-    // Scene objects
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    renderer: THREE.WebGLRenderer;
-    world: THREE.Group;
+    // 场景对象也需要移除 readonly
+    public scene!: THREE.Scene;
+    public camera!: THREE.PerspectiveCamera;
+    public renderer!: THREE.WebGLRenderer;
+    public world!: THREE.Group;
 
-    private raycaster: THREE.Raycaster;
-    private mouse: THREE.Vector2;
+    // 这些仍然保持 readonly
+    private readonly raycaster: THREE.Raycaster = new THREE.Raycaster();
+    private readonly mouse: THREE.Vector2 = new THREE.Vector2();
 
-    /**
-     * Creates a new MapboxThree instance
-     * @param map Mapbox GL JS map instance
-     * @param context WebGL rendering context
-     * @param options Configuration options
-     */
     constructor(map: Map, context: WebGLRenderingContext, options: MapboxThreeOptions = {}) {
+        this.initializeCore(map, context, options);
+        this.initializeManagers();
+        this.setupEventListeners();
+        this.startRenderLoop();
+    }
+
+    private initializeCore(map: Map, context: WebGLRenderingContext, options: MapboxThreeOptions): void {
         this.map = map;
         this.context = context;
         this.options = {
             defaultLights: options.defaultLights ?? true,
             passiveRendering: options.passiveRendering ?? true,
-            map: map,
-            context: context
+            map,
+            context
         };
 
-        // Initialize render manager
-        this.renderManager = new RenderManager(this,  this.options);
-
-        // Get core components from render manager
+        this.renderManager = new RenderManager(this.options);
         this.scene = this.renderManager.getScene();
         this.camera = this.renderManager.getCamera();
         this.renderer = this.renderManager.getRenderer();
-
-        // Create world container
         this.world = new THREE.Group();
         this.scene.add(this.world);
-        // Initialize other managers
-        this.cameraSync = new CameraSync(map, this.camera, this.world);
+    }
+
+    private initializeManagers(): void {
+        this.cameraSync = new CameraSync(this.map, this.camera, this.world);
         this.objectFactory = new ObjectFactory(this);
         this.animationManager = new AnimationManager();
         this.eventManager = new EventManager();
-
-        // Setup event listeners
-        this.setupEventListeners();
-
-        // Start render loop
-        this.update = this.update.bind(this);
-        this.update();
-
-        // 初始化射线和鼠标位置
-        this.raycaster = new THREE.Raycaster();
-        this.mouse = new THREE.Vector2();
-        
-        // 添加点击事件监听
-        this.map.getCanvas().addEventListener('click', this.onMapClick.bind(this));
     }
 
     /**
@@ -217,14 +203,6 @@ export class MapboxThree {
         if (this.map.repaint) {
             this.map.repaint = false;
         }
-
-        // console.log('MapboxThree.update:', {
-        //     cameraPosition: this.camera.position,
-        //     worldPosition: this.world.position,
-        //     worldScale: this.world.scale,
-        //     worldRotation: this.world.rotation
-        // });
-
         this.renderer.resetState();
         // this.cameraSync.updateCamera();
         this.renderManager.render();
@@ -313,5 +291,14 @@ export class MapboxThree {
         originalEvent: MouseEvent 
     }) => void): void {
         this.eventManager.on('click', callback);
+    }
+
+    private startRenderLoop(): void {
+        // 绑定 update 方法到实例
+        this.update = this.update.bind(this);
+        // 开始渲染循环
+        this.update();
+        // 添加点击事件监听
+        this.map.getCanvas().addEventListener('click', this.onMapClick.bind(this));
     }
 } 
