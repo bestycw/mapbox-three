@@ -5,7 +5,6 @@
     <script src='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css' rel='stylesheet' />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.162.0/three.min.js"></script>
-    <script src="../dist/mapbox-three.umd.js"></script>
     <style>
         body, html { 
             width: 100%;
@@ -21,10 +20,13 @@
 <body>
     <div id='map'></div>
 
-    <script>
+    <script type="module">
+        import { MapboxThree } from '/src/main.ts'
+        
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmVzdHljdyIsImEiOiJja3Y2YW5icnQxaTltMnBsMGR2c2FmaDZmIn0.bYZIK1mPso12DuyirxXjVw';
 
         const origin = [-122.4340, 37.7353];
+        console.log('Origin coordinates:', origin);
 
         const map = new mapboxgl.Map({
             container: 'map',
@@ -36,29 +38,44 @@
         });
 
         map.on('style.load', function() {
+            console.log('Map style loaded');
+            
             map.addLayer({
                 id: 'custom_layer',
                 type: 'custom',
                 onAdd: function(map, mbxContext){
+                    console.log('Custom layer onAdd:', {
+                        map,
+                        mbxContext
+                    });
+
                     window.tb = new MapboxThree(
                         map, 
                         mbxContext,
-                        {defaultLights: true}
+                        {
+                            defaultLights: true,
+                            passiveRendering: false
+                        }
                     );
 
-                    // 创建一个红色球体
-                    const sphere = tb.sphere({
+                    // 创建一个红色盒子
+                    const box = tb.box({
+                        width: 20,
+                        height: 20,
+                        depth: 20,
                         color: 'red',
-                        radius: 20,
-                        units: 'meters'
-                    }).setCoords(origin);
+                        units: 'meters',
+                        coordinates: origin
+                    });
+                    
+                    console.log('Created box:', box);
 
                     // 添加到场景
-                    tb.add(sphere);
+                    tb.add(box);
                 },
                 
                 render: function(gl, matrix){
-                    tb.update();
+                    window.tb?.update();
                 }
             });
         });
