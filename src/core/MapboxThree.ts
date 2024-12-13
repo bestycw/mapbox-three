@@ -51,14 +51,13 @@ export class MapboxThree {
         this.context = context;
         this.options = {
             defaultLights: options.defaultLights ?? true,
-            passiveRendering: options.passiveRendering ?? true
+            passiveRendering: options.passiveRendering ?? true,
+            map: map,
+            context: context
         };
 
         // Initialize render manager
-        this.renderManager = new RenderManager(this, {
-            defaultLights: this.options.defaultLights,
-            passiveRendering: this.options.passiveRendering
-        });
+        this.renderManager = new RenderManager(this,  this.options);
 
         // Get core components from render manager
         this.scene = this.renderManager.getScene();

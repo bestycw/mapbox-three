@@ -21,6 +21,8 @@ export interface ObjectOptions {
 export interface MapboxThreeOptions {
     defaultLights?: boolean;
     passiveRendering?: boolean;
+    map?: Map;
+    context?: WebGLRenderingContext;
 }
 
 // Base object interface

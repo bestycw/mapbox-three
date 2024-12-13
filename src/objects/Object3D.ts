@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { GeoUtils } from '../utils/GeoUtils';
 import { Coordinates } from '../types';
 
-export class Object3D extends THREE.Object3D {
+export class Object3D extends THREE.Group {
     setCoords(coords: Coordinates): this {
         const worldPos = GeoUtils.projectToWorld(coords);
+        console.log('worldPos:', worldPos,this);
         this.position.copy(worldPos);
         return this;
     }

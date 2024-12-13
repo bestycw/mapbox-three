@@ -111,5 +111,8 @@ export class CameraSync {
             .premultiply(this.state.translateCenter)
             .premultiply(scale)
             .premultiply(translateMap);
+
+
+        console.log('world:', this.world.matrix);
     }
 } 

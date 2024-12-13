@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 import { MapboxThree } from '../core/MapboxThree';
 import { CAMERA, LIGHTS } from '../config';
+import { Map as MapboxMap } from 'mapbox-gl';
+
+interface RenderManagerOptions {
+    defaultLights?: boolean;
+    passiveRendering?: boolean;
+    map?: MapboxMap;
+    context?: WebGLRenderingContext;
+}
 
 export class RenderManager {
     private scene: THREE.Scene;
@@ -8,12 +16,12 @@ export class RenderManager {
     private renderer: THREE.WebGLRenderer;
     private raycaster: THREE.Raycaster;
     private mouse: THREE.Vector2;
-    private mapboxThree: MapboxThree;
-    private isPassiveRendering: boolean;
+    // private mapboxThree: MapboxThree;
+    // private isPassiveRendering: boolean;
 
-    constructor(mapboxThree: MapboxThree, options: { defaultLights?: boolean; passiveRendering?: boolean } = {}) {
-        this.mapboxThree = mapboxThree;
-        this.isPassiveRendering = options.passiveRendering ?? false;
+    constructor(mapboxThree: MapboxThree, options: RenderManagerOptions = {}) {
+        // this.mapboxThree = mapboxThree;
+        // this.isPassiveRendering = options.passiveRendering ?? false;
 
         // Initialize scene
         this.scene = new THREE.Scene();
@@ -21,7 +29,7 @@ export class RenderManager {
         // Initialize camera
         this.camera = new THREE.PerspectiveCamera(
             CAMERA.fov,
-            window.innerWidth / window.innerHeight,
+            options.map?.getCanvas()?.width ?? window.innerWidth / window.innerHeight,
             CAMERA.near,
             CAMERA.far
         );
@@ -30,11 +38,15 @@ export class RenderManager {
         // Initialize renderer
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
-            alpha: true
+            alpha: true,
+            canvas: options.map?.getCanvas(),
+            context: options.context
         });
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-
+        this.renderer.shadowMap.enabled = true;
+        // 关闭自动清除 避免将地图背景清除
+        this.renderer.autoClear = false;
         // Initialize raycaster
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
@@ -45,7 +57,7 @@ export class RenderManager {
         }
 
         // Setup event listeners
-        window.addEventListener('resize', this.handleResize.bind(this));
+        // window.addEventListener('resize', this.handleResize.bind(this));
     }
 
     /**
