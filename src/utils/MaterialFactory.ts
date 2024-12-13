@@ -5,7 +5,7 @@ import { MaterialOptions } from '../types/index';
 export class MaterialFactory {
     private static materialCache = new Map<string, THREE.Material>();
 
-    static create(type: keyof typeof DEFAULT_MATERIALS, options?: Partial<MaterialOptions>): THREE.Material {
+    static create(type: keyof typeof DEFAULT_MATERIALS, options: Partial<MaterialOptions> = {}): THREE.Material {
         const cacheKey = this.getCacheKey(type, options);
         if (this.materialCache.has(cacheKey)) {
             return this.materialCache.get(cacheKey)!;
@@ -14,10 +14,12 @@ export class MaterialFactory {
         const defaultConfig = DEFAULT_MATERIALS[type];
         const materialOptions = {
             ...defaultConfig.options,
-            ...options
+            ...options,
+            opacity: options.opacity ?? 1.0,
+            transparent: options.transparent ?? false
         };
 
-        const MaterialClass = (THREE as any)[defaultConfig.type] as new (options: MaterialOptions) => THREE.Material;
+        const MaterialClass = (THREE as any)[defaultConfig.type];
         if (!MaterialClass) {
             throw new Error(`Invalid material type: ${type}`);
         }

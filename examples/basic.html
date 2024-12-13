@@ -37,7 +37,7 @@
             bearing: 80
         });
 
-        map.on('style.load', function() {
+        map.on('load', function() {
             console.log('Map style loaded');
             
             map.addLayer({
@@ -72,6 +72,17 @@
 
                     // 添加到场景
                     tb.add(box);
+
+                    // 在创建box后添加点击事件监听
+                    tb.onObjectClick(event => {
+                        const { object, intersection, originalEvent } = event;
+                        console.log('Clicked 3D object:', {
+                            object,
+                            intersectionPoint: intersection.point,
+                            distance: intersection.distance,
+                            mouseEvent: originalEvent
+                        });
+                    });
                 },
                 
                 render: function(gl, matrix){

@@ -16,6 +16,7 @@ export class EventManager {
     private hoveredObject: ExtendedObject3D | null = null;
     private draggedObject: ExtendedObject3D | null = null;
     private isDragging: boolean = false;
+    private eventListeners: Map<string, EventCallback[]> = new Map();
 
     /**
      * Adds an event listener to an object
@@ -83,21 +84,21 @@ export class EventManager {
         // Handle hover events
         if (this.hoveredObject !== intersectedObject) {
             if (this.hoveredObject) {
-                this.emit(this.hoveredObject, 'mouseleave');
+                this.emitToObject(this.hoveredObject, 'mouseleave');
             }
             if (intersectedObject) {
-                this.emit(intersectedObject, 'mouseenter');
+                this.emitToObject(intersectedObject, 'mouseenter');
             }
             this.hoveredObject = intersectedObject || null;
         }
 
         if (this.hoveredObject) {
-            this.emit(this.hoveredObject, 'hover');
+            this.emitToObject(this.hoveredObject, 'hover');
         }
 
         // Handle drag events
         if (this.isDragging && this.draggedObject) {
-            this.emit(this.draggedObject, 'drag', intersects[0].point);
+            this.emitToObject(this.draggedObject, 'drag', intersects[0].point);
         }
     }
 
@@ -110,7 +111,7 @@ export class EventManager {
         if (intersectedObject) {
             this.draggedObject = intersectedObject;
             this.isDragging = true;
-            this.emit(intersectedObject, 'dragstart', intersects[0].point);
+            this.emitToObject(intersectedObject, 'dragstart', intersects[0].point);
         }
     }
 
@@ -119,9 +120,9 @@ export class EventManager {
      */
     handleMouseUp(): void {
         if (this.draggedObject) {
-            this.emit(this.draggedObject, 'dragend');
+            this.emitToObject(this.draggedObject, 'dragend');
             if (!this.isDragging) {
-                this.emit(this.draggedObject, 'click');
+                this.emitToObject(this.draggedObject, 'click');
             }
             this.draggedObject = null;
         }
@@ -138,7 +139,7 @@ export class EventManager {
         this.isDragging = false;
     }
 
-    private emit(object: ExtendedObject3D, type: EventType, data?: any): void {
+    private emitToObject(object: ExtendedObject3D, type: EventType, data?: any): void {
         const subs = this.subscriptions.get(object.uuid);
         if (!subs) return;
 
@@ -147,5 +148,19 @@ export class EventManager {
                 sub.callback({ type, target: object, data });
             }
         });
+    }
+
+    on(type: string, callback: EventCallback): void {
+        if (!this.eventListeners.has(type)) {
+            this.eventListeners.set(type, []);
+        }
+        this.eventListeners.get(type)!.push(callback);
+    }
+
+    public emit(type: string, event: any): void {
+        const listeners = this.eventListeners.get(type);
+        if (listeners) {
+            listeners.forEach(callback => callback(event));
+        }
     }
 } 

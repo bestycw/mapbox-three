@@ -37,6 +37,9 @@ export class MapboxThree {
     renderer: THREE.WebGLRenderer;
     world: THREE.Group;
 
+    private raycaster: THREE.Raycaster;
+    private mouse: THREE.Vector2;
+
     /**
      * Creates a new MapboxThree instance
      * @param map Mapbox GL JS map instance
@@ -77,6 +80,13 @@ export class MapboxThree {
         // Start render loop
         this.update = this.update.bind(this);
         this.update();
+
+        // 初始化射线和鼠标位置
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+        
+        // 添加点击事件监听
+        this.map.getCanvas().addEventListener('click', this.onMapClick.bind(this));
     }
 
     /**
@@ -256,5 +266,53 @@ export class MapboxThree {
         this.animationManager.stopAll();
         this.eventManager.clear();
         this.world.clear();
+    }
+
+    /**
+     * 处理地图点击事件
+     * @param event 鼠标事件
+     */
+    private onMapClick(event: MouseEvent): void {
+        // 计算鼠标在标准化设备坐标中的位置
+        const canvas = this.map.getCanvas();
+        const rect = canvas.getBoundingClientRect();
+        
+        this.mouse.x = ((event.clientX - rect.left) / canvas.clientWidth) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / canvas.clientHeight) * 2 + 1;
+
+        // 更新射线
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+
+        // 检查射线与物体的相交
+        const intersects = this.raycaster.intersectObjects(this.world.children, true);
+        
+        if (intersects.length > 0) {
+            const object = intersects[0].object;
+            console.log('Clicked object:', {
+                object,
+                position: object.position,
+                worldPosition: object.getWorldPosition(new THREE.Vector3()),
+                intersectionPoint: intersects[0].point
+            });
+            
+            // 触发点击事件
+            this.eventManager.emit('click', {
+                object,
+                intersection: intersects[0],
+                originalEvent: event
+            });
+        }
+    }
+
+    /**
+     * 添加点击事件监听器
+     * @param callback 回调函数
+     */
+    onObjectClick(callback: (event: { 
+        object: THREE.Object3D; 
+        intersection: THREE.Intersection; 
+        originalEvent: MouseEvent 
+    }) => void): void {
+        this.eventManager.on('click', callback);
     }
 } 
