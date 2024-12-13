@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Map } from 'mapbox-gl';
+import mapboxgl from 'mapbox-gl';
 import { CameraSync } from './CameraSync';
 import { ObjectFactory } from '../objects/ObjectFactory';
 import { AnimationManager } from '../animation/AnimationManager';
@@ -11,6 +11,7 @@ import { ErrorHandler } from '../utils/ErrorHandler';
 import { InitializationError, RenderError } from '../utils/Errors';
 import { 
     MapboxThreeOptions, 
+    MapboxThreeInitOptions,
     SphereObject, 
     LineObject, 
     TubeObject, 
@@ -23,12 +24,10 @@ import {
  * MapboxThree - 整合 Three.js 和 Mapbox GL JS 的主类
  */
 export class MapboxThree {
-    // 基础属性不再是只读的
-    private map!: Map;
+    private map!: mapboxgl.Map;
     private context!: WebGLRenderingContext;
     private options!: Required<MapboxThreeOptions>;
     
-    // 管理器和场景对象保持现状
     private renderManager!: RenderManager;
     private cameraSync!: CameraSync;
     private objectFactory!: ObjectFactory;
@@ -36,53 +35,123 @@ export class MapboxThree {
     private eventManager!: EventManager;
     private logger: Logger;
     private errorHandler: ErrorHandler;
+    private isInitialized: boolean = false;
 
-    // 场景对象也需要移除 readonly
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
     public renderer!: THREE.WebGLRenderer;
     public world!: THREE.Group;
 
-    // 这些仍然保持 readonly
     private readonly raycaster: THREE.Raycaster = new THREE.Raycaster();
     private readonly mouse: THREE.Vector2 = new THREE.Vector2();
+    private readonly layerId: string = 'mapbox-three-layer';
 
-    constructor(map: Map, context: WebGLRenderingContext, options: MapboxThreeOptions = {}) {
+    constructor(options: MapboxThreeInitOptions) {
         this.logger = Logger.getInstance();
         this.errorHandler = ErrorHandler.getInstance();
         
         try {
             this.logger.info('Initializing MapboxThree...');
-            this.initializeCore(map, context, options);
-            this.initializeManagers();
-            this.setupEventListeners();
-            this.startRenderLoop();
-            this.logger.info('MapboxThree initialized successfully');
-        } catch (error) {
+            this.initializeMapbox(options);
+        } catch (error: unknown) {
             this.errorHandler.handleError(error as Error, {
                 context: 'MapboxThree.constructor',
                 rethrow: true
             });
+            options.onError?.(error as Error);
         }
     }
 
-    private initializeCore(map: Map, context: WebGLRenderingContext, options: MapboxThreeOptions): void {
+    private initializeMapbox(options: MapboxThreeInitOptions): void {
         try {
-            this.logger.debug('Initializing core components...');
+            this.logger.debug('Initializing Mapbox GL JS...');
             
-            if (!map || !context) {
-                throw new InitializationError('Map and context are required');
+            // Set Mapbox access token
+            mapboxgl.accessToken = options.mapboxConfig.accessToken;
+
+            // Create Mapbox instance
+            this.map = new mapboxgl.Map({
+                ...options.mapboxConfig,
+                style: options.mapboxConfig.style,
+                antialias: options.mapboxConfig.antialias ?? true,
+            });
+
+            // Add custom layer for Three.js
+            const customLayer: mapboxgl.CustomLayerInterface = {
+                id: this.layerId,
+                type: 'custom',
+                renderingMode: '3d',
+                onAdd: (map: mapboxgl.Map, gl: WebGLRenderingContext) => {
+                    try {
+                        this.context = gl;
+                        this.initializeThreeJS({
+                            ...options,
+                            map: this.map,
+                            context: this.context
+                        });
+                        this.isInitialized = true;
+                        options.onLoad?.();
+                    } catch (error: unknown) {
+                        this.errorHandler.handleError(error as Error, {
+                            context: 'MapboxThree.customLayer.onAdd',
+                            rethrow: false
+                        });
+                        options.onError?.(error as Error);
+                    }
+                },
+                render: () => {
+                    if (this.isInitialized) {
+                        this.update();
+                    }
+                }
+            };
+
+            // Wait for style to load before adding custom layer
+            if (this.map.isStyleLoaded()) {
+                this.map.addLayer(customLayer);
+            } else {
+                this.map.on('style.load', () => {
+                    this.map.addLayer(customLayer);
+                });
             }
 
-            this.map = map;
-            this.context = context;
+            // Handle map errors
+            this.map.on('error', (event) => {
+                this.errorHandler.handleError(new Error(event.error.message), {
+                    context: 'Mapbox',
+                    rethrow: false
+                });
+                options.onError?.(new Error(event.error.message));
+            });
+
+        } catch (error: unknown) {
+            throw new InitializationError(`Failed to initialize Mapbox: ${(error as Error).message}`);
+        }
+    }
+
+    private initializeThreeJS(options: MapboxThreeInitOptions & MapboxThreeOptions): void {
+        try {
             this.options = {
                 defaultLights: options.defaultLights ?? true,
                 passiveRendering: options.passiveRendering ?? true,
-                map,
-                context
+                map: this.map,
+                context: this.context
             };
 
+            this.initializeCore();
+            this.initializeManagers();
+            this.setupEventListeners();
+            
+            this.logger.info('MapboxThree initialized successfully');
+        } catch (error: unknown) {
+            throw new InitializationError(`Failed to initialize Three.js: ${(error as Error).message}`);
+        }
+    }
+
+    private initializeCore(): void {
+        try {
+            this.logger.debug('Initializing core components...');
+            
             this.renderManager = new RenderManager(this.options);
             this.scene = this.renderManager.getScene();
             this.camera = this.renderManager.getCamera();
@@ -244,7 +313,7 @@ export class MapboxThree {
             this.renderer.resetState();
             this.renderManager.render();
 
-            if (!this.options.passiveRendering) {
+            if (this.options.passiveRendering) {
                 this.map.triggerRepaint();
             }
         } catch (error: unknown) {
@@ -373,12 +442,44 @@ export class MapboxThree {
         this.eventManager.on('click', callback);
     }
 
-    private startRenderLoop(): void {
-        // 绑定 update 方法到实例
-        this.update = this.update.bind(this);
-        // 开始渲染循环
-        this.update();
-        // 添加点击事件监听
-        this.map.getCanvas().addEventListener('click', this.onMapClick.bind(this));
+    /**
+     * Check if MapboxThree is fully initialized
+     */
+    isReady(): boolean {
+        return this.isInitialized;
+    }
+
+    /**
+     * Get the underlying Mapbox instance
+     */
+    getMap(): mapboxgl.Map {
+        return this.map;
+    }
+
+    /**
+     * Set the map's camera position
+     */
+    setCamera(options: { center?: [number, number], zoom?: number, pitch?: number, bearing?: number }): void {
+        this.map.easeTo(options);
+    }
+
+    /**
+     * Enable/disable terrain
+     */
+    setTerrain(enabled: boolean, exaggeration: number = 1): void {
+        if (!this.map.isStyleLoaded()) {
+            this.logger.warn('Cannot set terrain before map style is loaded');
+            return;
+        }
+
+        if (enabled) {
+            if (!this.map.getSource('mapbox-dem')) {
+                this.logger.warn('Terrain source not found. Please configure terrain in initialization options.');
+                return;
+            }
+            this.map.setTerrain({ source: 'mapbox-dem', exaggeration });
+        } else {
+            this.map.setTerrain(null);
+        }
     }
 } 

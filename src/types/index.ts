@@ -25,6 +25,33 @@ export interface MapboxThreeOptions {
     context?: WebGLRenderingContext;
 }
 
+/**
+ * Mapbox configuration options
+ */
+export interface MapboxConfig {
+    container: string | HTMLElement;
+    style: string;
+    accessToken: string;
+    center?: [number, number];
+    zoom?: number;
+    pitch?: number;
+    bearing?: number;
+    antialias?: boolean;
+    terrain?: {
+        source: string;
+        exaggeration?: number;
+    };
+}
+
+/**
+ * Enhanced MapboxThree initialization options
+ */
+export interface MapboxThreeInitOptions extends Omit<MapboxThreeOptions, 'map' | 'context'> {
+    mapboxConfig: MapboxConfig;
+    onLoad?: () => void;
+    onError?: (error: Error) => void;
+}
+
 // Base object interface
 export interface BaseObject {
     coordinates?: Coordinates;
