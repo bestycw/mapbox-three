@@ -101,9 +101,12 @@ export class RenderManager {
      * Renders the scene
      */
     render(): void {
-        if (!this.isPassiveRendering) {
-            requestAnimationFrame(this.render.bind(this));
-        }
+        // if (!this.isPassiveRendering) {
+        //     // console.log('RenderManager.render:', {
+        //     //     isPassiveRendering: this.isPassiveRendering
+        //     // });
+        //     requestAnimationFrame(this.render.bind(this));
+        // }
         this.renderer.render(this.scene, this.camera);
     }
 

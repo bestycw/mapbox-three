@@ -217,7 +217,7 @@ export class MapboxThree {
         // });
 
         this.renderer.resetState();
-        this.cameraSync.updateCamera();
+        // this.cameraSync.updateCamera();
         this.renderManager.render();
 
         if (!this.options.passiveRendering) {
