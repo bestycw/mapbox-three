@@ -6,6 +6,9 @@ import { AnimationManager } from '../animation/AnimationManager';
 import { EventManager } from '../events/EventManager';
 import { RenderManager } from './RenderManager';
 import { GeoUtils } from '../utils/GeoUtils';
+import { Logger } from '../utils/Logger';
+import { ErrorHandler } from '../utils/ErrorHandler';
+import { InitializationError, RenderError } from '../utils/Errors';
 import { 
     MapboxThreeOptions, 
     SphereObject, 
@@ -31,6 +34,8 @@ export class MapboxThree {
     private objectFactory!: ObjectFactory;
     private animationManager!: AnimationManager;
     private eventManager!: EventManager;
+    private logger: Logger;
+    private errorHandler: ErrorHandler;
 
     // 场景对象也需要移除 readonly
     public scene!: THREE.Scene;
@@ -43,35 +48,67 @@ export class MapboxThree {
     private readonly mouse: THREE.Vector2 = new THREE.Vector2();
 
     constructor(map: Map, context: WebGLRenderingContext, options: MapboxThreeOptions = {}) {
-        this.initializeCore(map, context, options);
-        this.initializeManagers();
-        this.setupEventListeners();
-        this.startRenderLoop();
+        this.logger = Logger.getInstance();
+        this.errorHandler = ErrorHandler.getInstance();
+        
+        try {
+            this.logger.info('Initializing MapboxThree...');
+            this.initializeCore(map, context, options);
+            this.initializeManagers();
+            this.setupEventListeners();
+            this.startRenderLoop();
+            this.logger.info('MapboxThree initialized successfully');
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'MapboxThree.constructor',
+                rethrow: true
+            });
+        }
     }
 
     private initializeCore(map: Map, context: WebGLRenderingContext, options: MapboxThreeOptions): void {
-        this.map = map;
-        this.context = context;
-        this.options = {
-            defaultLights: options.defaultLights ?? true,
-            passiveRendering: options.passiveRendering ?? true,
-            map,
-            context
-        };
+        try {
+            this.logger.debug('Initializing core components...');
+            
+            if (!map || !context) {
+                throw new InitializationError('Map and context are required');
+            }
 
-        this.renderManager = new RenderManager(this.options);
-        this.scene = this.renderManager.getScene();
-        this.camera = this.renderManager.getCamera();
-        this.renderer = this.renderManager.getRenderer();
-        this.world = new THREE.Group();
-        this.scene.add(this.world);
+            this.map = map;
+            this.context = context;
+            this.options = {
+                defaultLights: options.defaultLights ?? true,
+                passiveRendering: options.passiveRendering ?? true,
+                map,
+                context
+            };
+
+            this.renderManager = new RenderManager(this.options);
+            this.scene = this.renderManager.getScene();
+            this.camera = this.renderManager.getCamera();
+            this.renderer = this.renderManager.getRenderer();
+            this.world = new THREE.Group();
+            this.scene.add(this.world);
+            
+            this.logger.debug('Core components initialized');
+        } catch (error: unknown) {
+            throw new InitializationError(`Failed to initialize core components: ${(error as Error).message}`);
+        }
     }
 
     private initializeManagers(): void {
-        this.cameraSync = new CameraSync(this.map, this.camera, this.world);
-        this.objectFactory = new ObjectFactory(this);
-        this.animationManager = new AnimationManager();
-        this.eventManager = new EventManager();
+        try {
+            this.logger.debug('Initializing managers...');
+            
+            this.cameraSync = new CameraSync(this.map, this.camera, this.world);
+            this.objectFactory = new ObjectFactory(this);
+            this.animationManager = new AnimationManager();
+            this.eventManager = new EventManager();
+            
+            this.logger.debug('Managers initialized');
+        } catch (error: unknown) {
+            throw new InitializationError(`Failed to initialize managers: ${(error as Error).message}`);
+        }
     }
 
     /**
@@ -200,15 +237,21 @@ export class MapboxThree {
      * Updates the scene
      */
     private update(): void {
-        if (this.map.repaint) {
-            this.map.repaint = false;
-        }
-        this.renderer.resetState();
-        // this.cameraSync.updateCamera();
-        this.renderManager.render();
+        try {
+            if (this.map.repaint) {
+                this.map.repaint = false;
+            }
+            this.renderer.resetState();
+            this.renderManager.render();
 
-        if (!this.options.passiveRendering) {
-            this.map.triggerRepaint();
+            if (!this.options.passiveRendering) {
+                this.map.triggerRepaint();
+            }
+        } catch (error: unknown) {
+            this.errorHandler.handleError(new RenderError(`Failed to update scene: ${(error as Error).message}`), {
+                context: 'MapboxThree.update',
+                rethrow: false
+            });
         }
     }
 
@@ -216,33 +259,70 @@ export class MapboxThree {
      * Sets up event listeners
      */
     private setupEventListeners(): void {
-        const canvas = this.map.getCanvas();
+        try {
+            this.logger.debug('Setting up event listeners...');
+            const canvas = this.map.getCanvas();
 
-        canvas.addEventListener('mousemove', (event: MouseEvent) => {
-            this.renderManager.updateMousePosition(event);
-            const intersects = this.renderManager.getIntersects();
-            this.eventManager.handleMouseMove(intersects);
-        });
+            canvas.addEventListener('mousemove', (event: MouseEvent) => {
+                try {
+                    this.renderManager.updateMousePosition(event);
+                    const intersects = this.renderManager.getIntersects();
+                    this.eventManager.handleMouseMove(intersects);
+                } catch (error) {
+                    this.errorHandler.handleError(error as Error, {
+                        context: 'MapboxThree.mousemove',
+                        silent: true
+                    });
+                }
+            });
 
-        canvas.addEventListener('mousedown', (event: MouseEvent) => {
-            this.renderManager.updateMousePosition(event);
-            const intersects = this.renderManager.getIntersects();
-            this.eventManager.handleMouseDown(intersects);
-        });
+            canvas.addEventListener('mousedown', (event: MouseEvent) => {
+                try {
+                    this.renderManager.updateMousePosition(event);
+                    const intersects = this.renderManager.getIntersects();
+                    this.eventManager.handleMouseDown(intersects);
+                } catch (error) {
+                    this.errorHandler.handleError(error as Error, {
+                        context: 'MapboxThree.mousedown',
+                        silent: true
+                    });
+                }
+            });
 
-        canvas.addEventListener('mouseup', () => {
-            this.eventManager.handleMouseUp();
-        });
+            canvas.addEventListener('mouseup', () => {
+                try {
+                    this.eventManager.handleMouseUp();
+                } catch (error) {
+                    this.errorHandler.handleError(error as Error, {
+                        context: 'MapboxThree.mouseup',
+                        silent: true
+                    });
+                }
+            });
+            
+            this.logger.debug('Event listeners setup complete');
+        } catch (error: unknown) {
+            throw new InitializationError(`Failed to setup event listeners: ${(error as Error).message}`);
+        }
     }
 
     /**
      * Disposes of all resources
      */
     dispose(): void {
-        this.renderManager.dispose();
-        this.animationManager.stopAll();
-        this.eventManager.clear();
-        this.world.clear();
+        try {
+            this.logger.info('Disposing MapboxThree resources...');
+            this.renderManager.dispose();
+            this.animationManager.stopAll();
+            this.eventManager.clear();
+            this.world.clear();
+            this.logger.info('MapboxThree disposed successfully');
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'MapboxThree.dispose',
+                rethrow: true
+            });
+        }
     }
 
     /**
@@ -282,7 +362,7 @@ export class MapboxThree {
     }
 
     /**
-     * 添加点击事件监听器
+     * 加点击事件监听器
      * @param callback 回调函数
      */
     onObjectClick(callback: (event: { 
