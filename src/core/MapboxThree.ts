@@ -413,20 +413,12 @@ export class MapboxThree {
         const intersects = this.raycaster.intersectObjects(this.world.children, true);
         
         if (intersects.length > 0) {
-            const object = intersects[0].object;
-            console.log('Clicked object:', {
-                object,
-                position: object.position,
-                worldPosition: object.getWorldPosition(new THREE.Vector3()),
-                intersectionPoint: intersects[0].point
-            });
+            // const object = intersects[0].object;
             
             // 触发点击事件
-            this.eventManager.emit('click', {
-                object,
-                intersection: intersects[0],
-                originalEvent: event
-            });
+            if (intersects.length > 0) {
+                this.eventManager.handleMouseDown(intersects);
+            }
         }
     }
 
@@ -434,12 +426,11 @@ export class MapboxThree {
      * 加点击事件监听器
      * @param callback 回调函数
      */
-    onObjectClick(callback: (event: { 
-        object: THREE.Object3D; 
-        intersection: THREE.Intersection; 
-        originalEvent: MouseEvent 
+    onObjectClick(callback: (event: {
+        object: ExtendedObject3D,
+        intersection: THREE.Intersection
     }) => void): void {
-        this.eventManager.on('click', callback);
+        this.eventManager.addEventListener(this.world, 'click', callback);
     }
 
     /**

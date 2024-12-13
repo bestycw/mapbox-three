@@ -14,15 +14,15 @@ import {
 
 export class ObjectFactory {
     private mapboxThree: MapboxThree;
+    private geometryFactory: GeometryFactory;
 
     constructor(mapboxThree: MapboxThree) {
         this.mapboxThree = mapboxThree;
+        this.geometryFactory = GeometryFactory.getInstance();
     }
 
     createBox(options: Partial<BoxObject> = {}): Object3D {
-        console.log('ObjectFactory.createBox:', options);
-        
-        const geometry = GeometryFactory.create('box', options);
+        const geometry = this.geometryFactory.create('box', options);
         const material = this.createMaterial(options.material || 'basic', {
             color: options.color,
             opacity: options.opacity,
@@ -42,7 +42,8 @@ export class ObjectFactory {
     }
 
     createSphere(options: Partial<SphereObject> = {}): Object3D {
-        const geometry = GeometryFactory.create('sphere', options);
+        const geometryFactory = GeometryFactory.getInstance();
+        const geometry = geometryFactory.create('sphere', options);
         const material = this.createMaterial(options.material || 'basic', {
             color: options.color,
             opacity: options.opacity,
@@ -80,7 +81,7 @@ export class ObjectFactory {
             throw new Error('Tube requires a non-empty path');
         }
 
-        const geometry = GeometryFactory.create('tube', {
+        const geometry = this.geometryFactory.create('tube', {
             ...options,
             path: options.path.map(coord => GeoUtils.projectToWorld(coord))
         });
@@ -122,7 +123,6 @@ export class ObjectFactory {
         }
 
         obj.userData.units = options.units || 'meters';
-        this.mapboxThree.world.add(obj);
 
         return obj;
     }

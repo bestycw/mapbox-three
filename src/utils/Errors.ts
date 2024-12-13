@@ -1,73 +1,119 @@
 /**
- * Base error class for all application errors
+ * Base error class for MapboxThree errors
  */
 export class MapboxThreeError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = this.constructor.name;
-    Error.captureStackTrace(this, this.constructor);
-  }
+    constructor(message: string) {
+        super(message);
+        this.name = 'MapboxThreeError';
+    }
 }
 
 /**
- * Error thrown when there are initialization issues
- */
-export class InitializationError extends MapboxThreeError {
-  constructor(message: string) {
-    super(`Initialization Error: ${message}`);
-  }
-}
-
-/**
- * Error thrown when there are rendering issues
+ * Error thrown when there's an issue with rendering
  */
 export class RenderError extends MapboxThreeError {
-  constructor(message: string) {
-    super(`Render Error: ${message}`);
-  }
+    constructor(message: string) {
+        super(message);
+        this.name = 'RenderError';
+    }
 }
 
 /**
- * Error thrown when there are resource loading issues
+ * Error thrown when there's an issue with geometry operations
  */
-export class ResourceError extends MapboxThreeError {
-  constructor(message: string) {
-    super(`Resource Error: ${message}`);
-  }
+export class GeometryError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'GeometryError';
+    }
 }
 
 /**
- * Error thrown when there are coordinate transformation issues
+ * Error thrown when there's an issue with materials
  */
-export class CoordinateError extends MapboxThreeError {
-  constructor(message: string) {
-    super(`Coordinate Error: ${message}`);
-  }
+export class MaterialError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'MaterialError';
+    }
 }
 
 /**
- * Error thrown when there are configuration issues
+ * Error thrown when there's an issue with batching operations
+ */
+export class BatchingError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'BatchingError';
+    }
+}
+
+/**
+ * Error thrown when there's an issue with optimization operations
+ */
+export class OptimizationError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'OptimizationError';
+    }
+}
+
+/**
+ * Error thrown when there's an issue with scene operations
+ */
+export class SceneError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'SceneError';
+    }
+}
+
+/**
+ * Error thrown when there's an issue with configuration
  */
 export class ConfigurationError extends MapboxThreeError {
-  constructor(message: string) {
-    super(`Configuration Error: ${message}`);
-  }
+    constructor(message: string) {
+        super(message);
+        this.name = 'ConfigurationError';
+    }
 }
 
 /**
- * Error thrown when there are event handling issues
+ * Error thrown when there's an issue with resource management
+ */
+export class ResourceError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ResourceError';
+    }
+}
+
+/**
+ * Error thrown when there's an issue with initialization
+ */
+export class InitializationError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'InitializationError';
+    }
+}
+
+/**
+ * Error thrown when there's an issue with validation
+ */
+export class ValidationError extends MapboxThreeError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ValidationError';
+    }
+}
+
+/**
+ * Error thrown when there's an issue with event handling
  */
 export class EventError extends MapboxThreeError {
-  constructor(message: string) {
-    super(`Event Error: ${message}`);
-  }
-}
-
-/**
- * Error thrown when there are state management issues
- */
-export class StateError extends MapboxThreeError {
-  constructor(message: string) {
-    super(`State Error: ${message}`);
-  }
+    constructor(message: string) {
+        super(message);
+        this.name = 'EventError';
+    }
 } 

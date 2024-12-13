@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapboxThree - 实例化性能对比</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.162.0/three.min.js"></script>
+    <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+    <style>
+        body { margin: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1;
+            max-width: 300px;
+        }
+        .section {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #metrics {
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="control-panel">
+        <div class="section">
+            <h3>渲染模式</h3>
+            <label><input type="radio" name="mode" value="normal" checked> 普通渲染</label>
+            <label><input type="radio" name="mode" value="instancing"> 实例化渲染</label>
+        </div>
+        <div class="section">
+            <h3>测试场景</h3>
+            <button onclick="benchmark.createScene(1000)">1000个对象</button>
+            <button onclick="benchmark.createScene(5000)">5000个对象</button>
+            <button onclick="benchmark.createScene(10000)">10000个对象</button>
+            <button onclick="benchmark.clearScene()" style="background: #e74c3c">清除场景</button>
+        </div>
+        <div class="section">
+            <h3>动画控制</h3>
+            <button onclick="benchmark.toggleAnimation()" id="animateBtn">开始动画</button>
+        </div>
+        <div class="section">
+            <h3>性能指标</h3>
+            <div id="metrics"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { MapboxThree } from '../src/core/index.ts';
+        import { InstanceManager } from '../src/utils/InstanceManager.ts';
+        import * as THREE from 'three';
+        class InstancingBenchmark {
+            constructor() {
+                this.objects = [];
+                this.instancedMeshes = new Map();
+                this.isAnimating = false;
+                this.initializeMapboxThree();
+                this.initializeStats();
+                this.setupEventListeners();
+            }
+
+            async initializeMapboxThree() {
+                this.mapboxThree = new MapboxThree({
+                    mapboxConfig: {
+                        container: 'map',
+                        style: 'mapbox://styles/mapbox/dark-v11',
+                        accessToken: 'pk.eyJ1IjoiYmVzdHljdyIsImEiOiJja3Y2YW5icnQxaTltMnBsMGR2c2FmaDZmIn0.bYZIK1mPso12DuyirxXjVw',
+                        center: [-74.5, 40],
+                        zoom: 15,
+                        pitch: 60,
+                        bearing: 30
+                    },
+                    defaultLights: true
+                });
+
+                this.instanceManager = new InstanceManager();
+            }
+
+            initializeStats() {
+                this.stats = new Stats();
+                this.stats.dom.classList.add('stats-panel');
+                document.body.appendChild(this.stats.dom);
+            }
+
+            setupEventListeners() {
+                document.querySelectorAll('input[name="mode"]').forEach(radio => {
+                    radio.addEventListener('change', () => {
+                        this.clearScene();
+                    });
+                });
+            }
+
+            createScene(count) {
+                this.clearScene();
+                const useInstancing = document.querySelector('input[name="mode"]:checked').value === 'instancing';
+                
+                const startTime = performance.now();
+
+                if (useInstancing) {
+                    this.createInstancedScene(count);
+                } else {
+                    this.createNormalScene(count);
+                }
+
+                const endTime = performance.now();
+                console.log(`Created ${count} objects in ${(endTime - startTime).toFixed(2)}ms (Instancing: ${useInstancing})`);
+                
+                this.updateMetrics();
+            }
+
+            createInstancedScene(count) {
+                // 创建基础几何体和材质
+                const geometry = new THREE.SphereGeometry(1, 32, 16);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: 0xff0000,
+                    opacity: 0.8,
+                    transparent: true
+                });
+
+                // 创建实例化网格
+                const instancedMesh = this.instanceManager.createInstancedMesh(
+                    geometry,
+                    material,
+                    count
+                );
+
+                // 生成随机位置、缩放和旋转
+                const positions = this.generateRandomPositions(count);
+                const scales = this.generateRandomScales(count);
+                const rotations = this.generateRandomRotations(count);
+
+                // 更新实例矩阵
+                this.instanceManager.updateInstanceMatrices(
+                    instancedMesh,
+                    positions,
+                    scales,
+                    rotations
+                );
+
+                this.mapboxThree.add(instancedMesh);
+                this.instancedMeshes.set('main', instancedMesh);
+            }
+
+            createNormalScene(count) {
+                for (let i = 0; i < count; i++) {
+                    const position = this.getRandomPosition();
+                    const object = this.mapboxThree.sphere({
+                        coordinates: position,
+                        radius: 5 + Math.random() * 5,
+                        color: '#ff0000',
+                        opacity: 0.8,
+                        units: 'meters',
+                        altitude: 100 + Math.random() * 200
+                    });
+
+                    this.objects.push(object);
+                    this.mapboxThree.add(object);
+                }
+            }
+
+            generateRandomPositions(count) {
+                const positions = [];
+                for (let i = 0; i < count; i++) {
+                    const pos = this.getRandomPosition();
+                    const worldPos = this.mapboxThree.projectToWorld(pos, 100 + Math.random() * 200);
+                    positions.push(worldPos);
+                }
+                return positions;
+            }
+
+            generateRandomScales(count) {
+                return Array(count).fill().map(() => {
+                    const scale = 5 + Math.random() * 5;
+                    return new THREE.Vector3(scale, scale, scale);
+                });
+            }
+
+            generateRandomRotations(count) {
+                return Array(count).fill().map(() => {
+                    return new THREE.Euler(
+                        Math.random() * Math.PI * 2,
+                        Math.random() * Math.PI * 2,
+                        Math.random() * Math.PI * 2
+                    );
+                });
+            }
+
+            getRandomPosition() {
+                const center = this.mapboxThree.getMap().getCenter();
+                const offset = 0.01;
+                return [
+                    center.lng + (Math.random() - 0.5) * offset,
+                    center.lat + (Math.random() - 0.5) * offset
+                ];
+            }
+
+            toggleAnimation() {
+                this.isAnimating = !this.isAnimating;
+                document.getElementById('animateBtn').textContent = 
+                    this.isAnimating ? '停止动画' : '开始动画';
+                
+                if (this.isAnimating) {
+                    this.animate();
+                }
+            }
+
+            animate() {
+                if (!this.isAnimating) return;
+                
+                this.stats.begin();
+
+                const useInstancing = document.querySelector('input[name="mode"]:checked').value === 'instancing';
+                
+                if (useInstancing) {
+                    this.instancedMeshes.forEach(mesh => {
+                        // 更新每个实例的矩阵
+                        const matrix = new THREE.Matrix4();
+                        for (let i = 0; i < mesh.count; i++) {
+                            mesh.getMatrixAt(i, matrix);
+                            // 添加旋转
+                            matrix.multiply(new THREE.Matrix4().makeRotationY(0.01));
+                            mesh.setMatrixAt(i, matrix);
+                        }
+                        mesh.instanceMatrix.needsUpdate = true;
+                    });
+                } else {
+                    // 更新普通对象的动画
+                    this.objects.forEach(obj => {
+                        obj.rotation.x += 0.01;
+                        obj.rotation.y += 0.01;
+                    });
+                }
+
+                this.stats.end();
+                requestAnimationFrame(() => this.animate());
+            }
+
+            clearScene() {
+                this.isAnimating = false;
+                document.getElementById('animateBtn').textContent = '开始动画';
+
+                // 清除普通对象
+                this.objects.forEach(obj => {
+                    this.mapboxThree.remove(obj);
+                });
+                this.objects = [];
+
+                // 清除实例化对象
+                this.instancedMeshes.forEach(mesh => {
+                    this.mapboxThree.remove(mesh);
+                });
+                this.instancedMeshes.clear();
+
+                this.updateMetrics();
+            }
+
+            updateMetrics() {
+                const useInstancing = document.querySelector('input[name="mode"]:checked').value === 'instancing';
+                const objectCount = useInstancing ? 
+                    Array.from(this.instancedMeshes.values()).reduce((sum, mesh) => sum + mesh.count, 0) :
+                    this.objects.length;
+
+                const drawCalls = useInstancing ? this.instancedMeshes.size : this.objects.length;
+                
+                document.getElementById('metrics').innerHTML = `
+                    <div>渲染模式: ${useInstancing ? '实例化' : '普通'}</div>
+                    <div>对象数量: ${objectCount}</div>
+                    <div>Draw Calls: ${drawCalls}</div>
+                    <div>内存使用: ${(performance.memory?.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB</div>
+                `;
+            }
+        }
+
+        window.benchmark = new InstancingBenchmark();
+    </script>
+</body>
+</html> 

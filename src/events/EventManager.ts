@@ -1,166 +1,236 @@
 import * as THREE from 'three';
-import { ExtendedObject3D } from '../types/index';
+import { ExtendedObject3D } from '../types';
+import { EventOptimizer } from './EventOptimizer';
+import { Logger } from '../utils/Logger';
+import { ErrorHandler } from '../utils/ErrorHandler';
+import { EventError } from '../utils/Errors';
 
-type EventCallback = (event: any) => void;
-type EventType = 'click' | 'hover' | 'mouseenter' | 'mouseleave' | 'drag' | 'dragstart' | 'dragend';
+type EventType = 'click' | 'mousemove' | 'mousedown' | 'mouseup' | 'mouseover' | 'mouseout';
+type EventCallback = (event: { object: ExtendedObject3D, intersection: THREE.Intersection }) => void;
 
-interface EventSubscription {
+interface EventListener {
     object: ExtendedObject3D;
-    type: EventType;
     callback: EventCallback;
-    enabled: boolean;
 }
 
+/**
+ * Manages event handling with optimization
+ */
 export class EventManager {
-    private subscriptions: Map<string, EventSubscription[]> = new Map();
-    private hoveredObject: ExtendedObject3D | null = null;
-    private draggedObject: ExtendedObject3D | null = null;
-    private isDragging: boolean = false;
-    private eventListeners: Map<string, EventCallback[]> = new Map();
+    private listeners: Map<EventType, Set<EventListener>>;
+    private activeObjects: Set<ExtendedObject3D>;
+    private eventOptimizer: EventOptimizer;
+    private logger: Logger;
+    private errorHandler: ErrorHandler;
 
-    /**
-     * Adds an event listener to an object
-     * @param object The object to listen for events on
-     * @param type The type of event to listen for
-     * @param callback The callback to execute when the event occurs
-     */
-    addEventListener(object: ExtendedObject3D, type: EventType, callback: EventCallback): void {
-        const id = object.uuid;
-        if (!this.subscriptions.has(id)) {
-            this.subscriptions.set(id, []);
-        }
+    constructor() {
+        this.listeners = new Map();
+        this.activeObjects = new Set();
+        this.eventOptimizer = EventOptimizer.getInstance();
+        this.logger = Logger.getInstance();
+        this.errorHandler = ErrorHandler.getInstance();
 
-        this.subscriptions.get(id)!.push({
-            object,
-            type,
-            callback,
-            enabled: true
+        // Initialize listener sets for each event type
+        ['click', 'mousemove', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].forEach(type => {
+            this.listeners.set(type as EventType, new Set());
         });
     }
 
     /**
-     * Removes an event listener from an object
-     * @param object The object to remove the listener from
-     * @param type The type of event to remove
-     * @param callback The callback to remove
+     * Add an event listener with throttling
      */
-    removeEventListener(object: ExtendedObject3D, type: EventType, callback: EventCallback): void {
-        const id = object.uuid;
-        const subs = this.subscriptions.get(id);
-        if (!subs) return;
-
-        const index = subs.findIndex(sub => 
-            sub.type === type && sub.callback === callback
-        );
-
-        if (index !== -1) {
-            subs.splice(index, 1);
-            if (subs.length === 0) {
-                this.subscriptions.delete(id);
+    public addEventListener(object: ExtendedObject3D, type: EventType, callback: EventCallback): void {
+        try {
+            const listeners = this.listeners.get(type);
+            if (!listeners) {
+                throw new EventError(`Invalid event type: ${type}`);
             }
+
+            const throttledCallback = this.eventOptimizer.throttle(
+                type,
+                `${object.uuid}_${type}`,
+                callback
+            );
+
+            listeners.add({ object, callback: throttledCallback });
+            this.activeObjects.add(object);
+            
+            this.logger.debug(`Added ${type} listener for object ${object.uuid}`);
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'EventManager.addEventListener',
+                silent: true
+            });
         }
     }
 
     /**
-     * Enables or disables all event listeners for an object
-     * @param object The object to enable/disable events for
-     * @param enabled Whether to enable or disable events
+     * Remove an event listener
      */
-    setEnabled(object: ExtendedObject3D, enabled: boolean): void {
-        const id = object.uuid;
-        const subs = this.subscriptions.get(id);
-        if (subs) {
-            subs.forEach(sub => sub.enabled = enabled);
-        }
-    }
+    public removeEventListener(object: ExtendedObject3D, type: EventType, callback: EventCallback): void {
+        try {
+            const listeners = this.listeners.get(type);
+            if (!listeners) return;
 
-    /**
-     * Handles mouse move events
-     * @param intersects Array of intersected objects
-     */
-    handleMouseMove(intersects: THREE.Intersection[]): void {
-        const intersectedObject = intersects[0]?.object as ExtendedObject3D | undefined;
+            listeners.forEach(listener => {
+                if (listener.object === object && listener.callback === callback) {
+                    listeners.delete(listener);
+                    this.eventOptimizer.removeHandler(type, `${object.uuid}_${type}`);
+                }
+            });
 
-        // Handle hover events
-        if (this.hoveredObject !== intersectedObject) {
-            if (this.hoveredObject) {
-                this.emitToObject(this.hoveredObject, 'mouseleave');
+            // Remove object if it has no more listeners
+            if (this.getObjectListenerCount(object) === 0) {
+                this.activeObjects.delete(object);
             }
-            if (intersectedObject) {
-                this.emitToObject(intersectedObject, 'mouseenter');
-            }
-            this.hoveredObject = intersectedObject || null;
-        }
 
-        if (this.hoveredObject) {
-            this.emitToObject(this.hoveredObject, 'hover');
-        }
-
-        // Handle drag events
-        if (this.isDragging && this.draggedObject) {
-            this.emitToObject(this.draggedObject, 'drag', intersects[0].point);
+            this.logger.debug(`Removed ${type} listener for object ${object.uuid}`);
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'EventManager.removeEventListener',
+                silent: true
+            });
         }
     }
 
     /**
-     * Handles mouse down events
-     * @param intersects Array of intersected objects
+     * Handle mouse move events
      */
-    handleMouseDown(intersects: THREE.Intersection[]): void {
-        const intersectedObject = intersects[0]?.object as ExtendedObject3D | undefined;
-        if (intersectedObject) {
-            this.draggedObject = intersectedObject;
-            this.isDragging = true;
-            this.emitToObject(intersectedObject, 'dragstart', intersects[0].point);
+    public handleMouseMove(intersects: THREE.Intersection[]): void {
+        try {
+            const listeners = this.listeners.get('mousemove');
+            if (!listeners) return;
+
+            const hoveredObjects = new Set<ExtendedObject3D>();
+
+            intersects.forEach(intersection => {
+                const object = intersection.object as ExtendedObject3D;
+                if (this.activeObjects.has(object)) {
+                    hoveredObjects.add(object);
+                    this.dispatchEvent('mousemove', object, intersection);
+                    
+                    if (!object.userData.isHovered) {
+                        object.userData.isHovered = true;
+                        this.dispatchEvent('mouseover', object, intersection);
+                    }
+                }
+            });
+
+            // Handle mouseout for previously hovered objects
+            this.activeObjects.forEach(object => {
+                if (object.userData.isHovered && !hoveredObjects.has(object)) {
+                    object.userData.isHovered = false;
+                    this.dispatchEvent('mouseout', object, null);
+                }
+            });
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'EventManager.handleMouseMove',
+                silent: true
+            });
         }
     }
 
     /**
-     * Handles mouse up events
+     * Handle mouse down events
      */
-    handleMouseUp(): void {
-        if (this.draggedObject) {
-            this.emitToObject(this.draggedObject, 'dragend');
-            if (!this.isDragging) {
-                this.emitToObject(this.draggedObject, 'click');
-            }
-            this.draggedObject = null;
+    public handleMouseDown(intersects: THREE.Intersection[]): void {
+        try {
+            intersects.forEach(intersection => {
+                const object = intersection.object as ExtendedObject3D;
+                if (this.activeObjects.has(object)) {
+                    this.dispatchEvent('mousedown', object, intersection);
+                }
+            });
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'EventManager.handleMouseDown',
+                silent: true
+            });
         }
-        this.isDragging = false;
     }
 
     /**
-     * Clears all event subscriptions
+     * Handle mouse up events
      */
-    clear(): void {
-        this.subscriptions.clear();
-        this.hoveredObject = null;
-        this.draggedObject = null;
-        this.isDragging = false;
+    public handleMouseUp(): void {
+        try {
+            this.activeObjects.forEach(object => {
+                if (object.userData.isHovered) {
+                    this.dispatchEvent('mouseup', object, null);
+                    this.dispatchEvent('click', object, null);
+                }
+            });
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'EventManager.handleMouseUp',
+                silent: true
+            });
+        }
     }
 
-    private emitToObject(object: ExtendedObject3D, type: EventType, data?: any): void {
-        const subs = this.subscriptions.get(object.uuid);
-        if (!subs) return;
+    /**
+     * Dispatch an event to listeners
+     */
+    private dispatchEvent(type: EventType, object: ExtendedObject3D, intersection: THREE.Intersection | null): void {
+        const listeners = this.listeners.get(type);
+        if (!listeners) return;
 
-        subs.forEach(sub => {
-            if (sub.type === type && sub.enabled) {
-                sub.callback({ type, target: object, data });
+        listeners.forEach(listener => {
+            if (listener.object === object) {
+                listener.callback({
+                    object,
+                    intersection: intersection || { distance: 0, point: new THREE.Vector3() } as THREE.Intersection
+                });
             }
         });
     }
 
-    on(type: string, callback: EventCallback): void {
-        if (!this.eventListeners.has(type)) {
-            this.eventListeners.set(type, []);
-        }
-        this.eventListeners.get(type)!.push(callback);
+    /**
+     * Get the number of listeners for an object
+     */
+    private getObjectListenerCount(object: ExtendedObject3D): number {
+        let count = 0;
+        this.listeners.forEach(listeners => {
+            listeners.forEach(listener => {
+                if (listener.object === object) count++;
+            });
+        });
+        return count;
     }
 
-    public emit(type: string, event: any): void {
-        const listeners = this.eventListeners.get(type);
-        if (listeners) {
-            listeners.forEach(callback => callback(event));
+    /**
+     * Get event statistics
+     */
+    public getStats(): Record<string, { listenerCount: number, activeObjects: number }> {
+        const stats: Record<string, { listenerCount: number, activeObjects: number }> = {};
+        
+        this.listeners.forEach((listeners, type) => {
+            stats[type] = {
+                listenerCount: listeners.size,
+                activeObjects: this.activeObjects.size
+            };
+        });
+
+        return stats;
+    }
+
+    /**
+     * Clear all event listeners
+     */
+    public clear(): void {
+        try {
+            this.listeners.forEach((listeners, type) => {
+                listeners.clear();
+            });
+            this.activeObjects.clear();
+            this.eventOptimizer.clearHandlers();
+            this.logger.debug('Cleared all event listeners');
+        } catch (error) {
+            this.errorHandler.handleError(error as Error, {
+                context: 'EventManager.clear',
+                silent: true
+            });
         }
     }
 } 

@@ -14,13 +14,6 @@ export class GeoUtils {
         const pixelsPerMeter = this.projectedUnitsPerMeter(lat);
         projected.push(z * pixelsPerMeter);
 
-        console.log('GeoUtils.projectToWorld:', {
-            input: coords,
-            altitude,
-            projected,
-            pixelsPerMeter
-        });
-
         return new THREE.Vector3(projected[0], projected[1], projected[2]);
     }
 

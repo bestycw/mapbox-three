@@ -91,10 +91,13 @@ export interface BoxObject extends BaseObject {
 // Extended Three.js object
 export interface ExtendedObject3D extends THREE.Object3D {
     _mapboxThree?: MapboxThree;
+    geometry?: THREE.BufferGeometry;
+    material?: THREE.Material | THREE.Material[];
     userData: {
         units?: UnitType;
         isGeoGroup?: boolean;
         animationId?: string;
+        poolType?: string;
         [key: string]: any;
     };
 }
@@ -154,4 +157,6 @@ export interface GeometryOptions {
 }
 
 // Export config types
-export { EASING, DEFAULT_MATERIALS, DEFAULT_GEOMETRIES }; 
+export { EASING, DEFAULT_MATERIALS, DEFAULT_GEOMETRIES };
+
+export * from './optimization';
