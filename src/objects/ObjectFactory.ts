@@ -11,6 +11,7 @@ import {
     BoxObject,
     MaterialType
 } from '../types';
+import { enhancedObj } from '../utils/ObjEnhancer';
 
 export class ObjectFactory {
     private mapboxThree: MapboxThree;
@@ -21,7 +22,7 @@ export class ObjectFactory {
         this.geometryFactory = GeometryFactory.getInstance();
     }
 
-    createBox(options: Partial<BoxObject> = {}): Object3D {
+    createBox(options: Partial<BoxObject> = {}): THREE.Mesh {
         const geometry = this.geometryFactory.create('box', options);
         const material = this.createMaterial(options.material || 'basic', {
             color: options.color,
@@ -33,12 +34,16 @@ export class ObjectFactory {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
 
-        const obj = createObject3D(mesh);
+        const enhancedMesh = enhancedObj(mesh);
+
         if (options.coordinates) {
-            obj.setCoords(options.coordinates);
+            enhancedMesh.setCoords(options.coordinates);
+        }
+        if (options.units) {
+            enhancedMesh.setUnits(options.units);
         }
 
-        return this.setupObject(obj, options);
+        return enhancedMesh;
     }
 
     createSphere(options: Partial<SphereObject> = {}): Object3D {
