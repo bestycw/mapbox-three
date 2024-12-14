@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BaseObject, MaterialOptions, UnitType } from '../types/index';
-import { DEFAULT_GEOMETRIES } from '../config';
+import { DEFAULT_GEOMETRIES } from '../config/constants';
 
 export class ObjectUtils {
     static createMaterial(type: string, options: MaterialOptions): THREE.Material {

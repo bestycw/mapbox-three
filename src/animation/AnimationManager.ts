@@ -1,5 +1,5 @@
 import { ExtendedObject3D, AnimationState, AnimationOptions, EasingType } from '../types';
-import { EASING } from '../config';
+import { EASING } from '../config/constants';
 
 export class AnimationManager {
     private animations: Map<string, AnimationState> = new Map();

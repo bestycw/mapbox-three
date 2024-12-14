@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Map } from 'mapbox-gl';
 import { MapboxThree } from '../core/MapboxThree';
-import { EASING, DEFAULT_MATERIALS, DEFAULT_GEOMETRIES } from '../config';
+import { EASING, DEFAULT_MATERIALS, DEFAULT_GEOMETRIES } from '../config/constants';
 
 // Base types
 export type Coordinates = [number, number] | [number, number, number];

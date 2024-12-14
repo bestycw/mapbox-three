@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MERCATOR_A, DEG2RAD, PROJECTION_WORLD_SIZE, EARTH_CIRCUMFERENCE } from '../config';
+import { MERCATOR_A, DEG2RAD, PROJECTION_WORLD_SIZE, EARTH_CIRCUMFERENCE } from '../config/constants';
 import { Coordinates } from '../types/index';
 
 export class GeoUtils {

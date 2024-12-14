@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Map } from 'mapbox-gl';
 import { utils } from '../utils/utils';
-import * as Constants from '../utils/constants';
+import * as Constants from '../config/constants';
 
 interface CameraSyncState {
     fov: number;
@@ -13,6 +13,7 @@ interface CameraSyncState {
 }
 
 export class CameraSync {
+    private enabled: boolean = false;
     map: Map;
     camera: THREE.PerspectiveCamera;
     world: THREE.Group;
@@ -111,5 +112,18 @@ export class CameraSync {
             .premultiply(this.state.translateCenter)
             .premultiply(scale)
             .premultiply(translateMap);
+    }
+
+    public enable(): void {
+        this.enabled = true;
+    }
+
+    public disable(): void {
+        this.enabled = false;
+    }
+
+    public update(): void {
+        if (!this.enabled) return;
+        this.updateCamera();
     }
 } 

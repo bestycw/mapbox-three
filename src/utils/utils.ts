@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as Constants from './constants';
+import * as Constants from '../config/constants';
 import { Validator } from './validate';
 
 type Rotation = number | { x?: number; y?: number; z?: number };
