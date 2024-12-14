@@ -16,7 +16,7 @@
     <div id="map"></div>
     <script type="module">
         import { MapboxThree } from '../src/core/index.ts';
-
+        import * as THREE from 'three';
         // 配置选项
         const config = {
             mapbox: {
@@ -69,26 +69,13 @@
             color: '#ff0000',
             // opacity: 0.8
         });
-
-        // const sphere = mapboxThree.sphere({
-        //     coordinates: [-74.6, 40],
-        //     radius: 100,
-        //     segments: 32,
-        //     color: '#00ff00',
-        //     opacity: 0.8
-        // });
-
+        // 使用threejs 创建一个box
+        const box2 = new THREE.BoxGeometry(200, 200, 200);
+        const material = new THREE.MeshBasicMaterial({ color: '#00ff00' });
+        const boxMesh = new THREE.Mesh(box2, material);
         // 添加到场景
-        mapboxThree.add(box);
-        // mapboxThree.add(sphere);
-
-        // 动画示例
-        // function animate() {
-        //     box.rotation.y += 0.01;
-        //     sphere.rotation.x += 0.01;
-        //     requestAnimationFrame(animate);
-        // }
-        // animate();
+        // mapboxThree.add(box);
+        mapboxThree.add(boxMesh).setCoords([-74.5, 40])
     </script>
 </body>
 </html> 

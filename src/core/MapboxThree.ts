@@ -12,6 +12,7 @@ import {
     ExtendedObject3D
 } from '../types';
 import { CameraSync } from './CameraSync';
+import { enhancedObj } from '../utils/ObjEnhancer';
 
 /**
  * MapboxThree - 整合 Three.js 和 Mapbox GL JS 的主类
@@ -71,8 +72,8 @@ export class MapboxThree {
             onAdd: (map: mapboxgl.Map, gl: WebGLRenderingContext) => {
                 this.initializeThreeJS(gl);
             },
-            render: (gl: WebGLRenderingContext, matrix: number[]) => {
-                this.render(matrix);
+            render: () => {
+                this.render();
             }
         };
     }
@@ -91,7 +92,7 @@ export class MapboxThree {
 
         // 初始化对象工厂
         this.objectFactory = new ObjectFactory(this);
-        
+
 
     }
     private setupScene(config?: SceneConfig): void {
@@ -159,7 +160,7 @@ export class MapboxThree {
         }
     }
 
-    private render(matrix: number[]): void {
+    private render(): void {
         try {
             // // 更新相机
             // this.cameraSync.update();
@@ -184,9 +185,29 @@ export class MapboxThree {
     }
 
     // 公共API
-    public add(object: ExtendedObject3D): this {
-        this.world.add(object);
-        return this;
+    public add(object: ExtendedObject3D): ExtendedObject3D {
+        //判断是否有setCoord方法
+        if (!object.setCoord) {
+            enhancedObj(object);
+        }
+        //如果是mesh，则添加到世界
+        if (object instanceof THREE.Mesh) {
+            this.world.add(object);
+        }
+        //如果是group，则添加到世界
+        if (object instanceof THREE.Group) {
+            this.world.add(object);
+        }
+        //如果是灯光，则添加到场景
+        if (object instanceof THREE.Light) {
+            this.scene.add(object);
+        }
+        //如果是相机，则添加到场景
+        if (object instanceof THREE.PerspectiveCamera) {
+            this.scene.add(object);
+        }
+
+        return object;
     }
 
     public remove(object: ExtendedObject3D): this {
@@ -202,7 +223,7 @@ export class MapboxThree {
     public sphere(options: Partial<SphereObject> = {}): ExtendedObject3D {
         return this.objectFactory.createSphere(options);
     }
-
+    
     public dispose(): void {
         this.renderer?.dispose();
         this.map?.remove();

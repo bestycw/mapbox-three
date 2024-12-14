@@ -15,7 +15,7 @@ interface EnhancedObject3D extends THREE.Mesh {
 /**
  * 增强 Obj 对象，添加地理相关的方法
  */
-export function enhancedObj(obj: THREE.Mesh): EnhancedObject3D {
+export function enhancedObj(obj: THREE.Object3D): EnhancedObject3D {
     const enhanced = obj as EnhancedObject3D;
     // 添加地理坐标方法
     enhanced.setCoords = function(coords: Coordinates): EnhancedObject3D {
