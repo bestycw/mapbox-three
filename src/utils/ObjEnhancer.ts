@@ -1,24 +1,16 @@
-import * as THREE from 'three';
 import { GeoUtils } from './GeoUtils';
-import { Coordinates } from '../types';
+import { Coordinates, ExtendedObject3D, UserData } from '../types';
 
-// 修改接口定义
-interface EnhancedObject3D extends THREE.Mesh {
-    setCoords(coords: Coordinates): EnhancedObject3D;
-    getCoords(): Coordinates;
-    setAltitude(altitude: number): EnhancedObject3D;
-    getAltitude(): number;
-    setUnits(units: string): EnhancedObject3D;
-    getUnits(): string;
-}
 
 /**
  * 增强 Obj 对象，添加地理相关的方法
  */
-export function enhancedObj(obj: THREE.Object3D): EnhancedObject3D {
-    const enhanced = obj as EnhancedObject3D;
+export function enhancedObj(obj: ExtendedObject3D): ExtendedObject3D {
+    const enhanced = obj;
+    // obj.userData.isUser = true;
+    obj.userData.isUser = true;
     // 添加地理坐标方法
-    enhanced.setCoords = function(coords: Coordinates): EnhancedObject3D {
+    enhanced.setCoords = function(coords: Coordinates): ExtendedObject3D {
         const worldPos = GeoUtils.projectToWorld(coords);
         this.position.copy(worldPos);
         return this;
@@ -29,7 +21,7 @@ export function enhancedObj(obj: THREE.Object3D): EnhancedObject3D {
     };
 
     // 添加高度控制方法
-    enhanced.setAltitude = function(altitude: number): EnhancedObject3D {
+    enhanced.setAltitude = function(altitude: number): ExtendedObject3D {
         const coords = this.getCoords();
         const worldPos = GeoUtils.projectToWorld(coords, altitude);
         this.position.copy(worldPos);
@@ -39,16 +31,38 @@ export function enhancedObj(obj: THREE.Object3D): EnhancedObject3D {
     enhanced.getAltitude = function(): number {
         return this.position.y;
     };
-
-    // 添加单位设置方法
-    enhanced.setUnits = function(units: string): EnhancedObject3D {
-        this.userData.units = units;
-        return this;
-    };
-
-    enhanced.getUnits = function(): string {
-        return this.userData.units || 'meters';
-    };
-
     return enhanced;
 } 
+
+export function initUserData(obj: ExtendedObject3D, userOptions: UserData ={}): ExtendedObject3D {
+    // if(!userOptions) return obj;
+    if (userOptions.scale) {
+        if (Array.isArray(userOptions.scale)) {
+            const [x, y, z] = userOptions.scale;
+            obj.scale.set(x, y, z);
+        } else {
+            obj.scale.setScalar(userOptions.scale);
+        }
+    }
+
+    if (userOptions.rotation) {
+        const [x, y, z] = userOptions.rotation;
+        obj.rotation.set(x, y, z);
+    }
+    obj.userData = {
+        isUser: true,
+        units: 'meters',
+        ...userOptions,
+    };
+    return obj;
+}
+
+export function formatObj(object: ExtendedObject3D, userOptions: UserData ={}): ExtendedObject3D {
+    if (!object.setCoords) {
+        enhancedObj(object);
+    }
+    if(!object.userData.isUser){
+        initUserData(object, userOptions);
+    }
+    return object;
+}

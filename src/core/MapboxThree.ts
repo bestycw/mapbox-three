@@ -1,18 +1,18 @@
 import * as THREE from 'three';
 import mapboxgl from 'mapbox-gl';
-import { ObjectFactory } from '../objects/ObjectFactory';
+// import { ObjectFactory } from '../objects/ObjectFactory';
 import { Logger } from '../utils/Logger';
 import { ErrorHandler } from '../utils/ErrorHandler';
-import { CameraConfig, LightsConfig, MapboxThreeConfig, RendererConfig, SceneConfig } from '../types/config';
+import { CameraConfig, LightsConfig, MapboxThreeConfig, OptimizationConfig, RendererConfig, SceneConfig } from '../types/config';
 import { DEFAULT_CONFIG } from '../config/DefaultConfig';
 import { deepMerge } from '../utils/deepMerge';
-import { 
-    BoxObject,
-    SphereObject,
-    ExtendedObject3D
+import {
+    ExtendedObject3D,
+    UserData
 } from '../types';
 import { CameraSync } from './CameraSync';
-import { enhancedObj } from '../utils/ObjEnhancer';
+import { formatObj } from '../utils/ObjEnhancer';
+import { OptimizationManager } from './OptimizationManager';
 
 /**
  * MapboxThree - 整合 Three.js 和 Mapbox GL JS 的主类
@@ -24,9 +24,9 @@ export class MapboxThree {
     private scene!: THREE.Scene;
     private camera!: THREE.PerspectiveCamera;
     private customLayer!: mapboxgl.CustomLayerInterface;
-    private objectFactory!: ObjectFactory;
+    // private objectFactory!: ObjectFactory;
     private cameraSync!: CameraSync;
-    
+    private optimizationManager!: OptimizationManager;
     public world!: THREE.Group;
     public isInitialized: boolean = false;
 
@@ -62,8 +62,6 @@ export class MapboxThree {
         return config;
     }
 
-  
-
     private createCustomLayer(): void {
         this.customLayer = {
             id: this.layerId,
@@ -71,6 +69,7 @@ export class MapboxThree {
             renderingMode: '3d',
             onAdd: (map: mapboxgl.Map, gl: WebGLRenderingContext) => {
                 this.initializeThreeJS(gl);
+
             },
             render: () => {
                 this.render();
@@ -79,22 +78,29 @@ export class MapboxThree {
     }
 
     private initializeThreeJS(gl: WebGLRenderingContext): void {
-        const { three } = this.config;
+        const { three, optimization } = this.config;
         this.setupRenderer(gl, three?.renderer);
         // 初始化场景
         this.setupScene(three?.scene);
 
         // 初始化相机
         this.setupCamera(three?.camera);
-        
+
         // 初始化灯光
         this.setupLights(three?.lights);
+        // 初始化优化管理器
 
-        // 初始化对象工厂
-        this.objectFactory = new ObjectFactory(this);
-
-
+        this.setupManager(optimization);
     }
+
+    private setupManager(config?: OptimizationConfig): void {
+        // this.batchManager = new BatchManager(this);
+        console.log('setupManager', config);
+        this.optimizationManager = OptimizationManager.getInstance(this, config);
+
+        
+    }
+
     private setupScene(config?: SceneConfig): void {
         // if (!config) throw new Error('Scene is not defined');
         this.scene = new THREE.Scene();
@@ -139,7 +145,7 @@ export class MapboxThree {
         if (!config) return;
 
         // const { lights } = config;   
-        
+
         if (config.ambient?.enabled) {
             const light = new THREE.AmbientLight(
                 config.ambient.color || '#ffffff',
@@ -185,17 +191,10 @@ export class MapboxThree {
     }
 
     // 公共API
-    public add(object: ExtendedObject3D): ExtendedObject3D {
-        //判断是否有setCoord方法
-        if (!object.setCoord) {
-            enhancedObj(object);
-        }
+    public add(object: ExtendedObject3D, userOptions?: UserData): ExtendedObject3D {
+        formatObj(object, userOptions);
         //如果是mesh，则添加到世界
-        if (object instanceof THREE.Mesh) {
-            this.world.add(object);
-        }
-        //如果是group，则添加到世界
-        if (object instanceof THREE.Group) {
+        if (object instanceof THREE.Mesh || object instanceof THREE.Group) {
             this.world.add(object);
         }
         //如果是灯光，则添加到场景
@@ -215,15 +214,6 @@ export class MapboxThree {
         return this;
     }
 
-    public box(options: Partial<BoxObject> = {}): ExtendedObject3D {
-        console.log('box', this.objectFactory);
-        return this.objectFactory.createBox(options);
-    }
-
-    public sphere(options: Partial<SphereObject> = {}): ExtendedObject3D {
-        return this.objectFactory.createSphere(options);
-    }
-    
     public dispose(): void {
         this.renderer?.dispose();
         this.map?.remove();

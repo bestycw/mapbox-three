@@ -73,7 +73,8 @@ export class BatchManager {
             if (pending.length >= batchSize) {
                 this.logger.debug(`Batch size reached for ${batchKey}, processing batch...`);
                 this.processBatch(batchKey);
-                return this.batches.get(batchKey) || null;
+                const batchMesh = this.batches.get(batchKey);
+                return batchMesh ? formatObj(batchMesh as ExtendedObject3D) : null;
             }
 
             return null;

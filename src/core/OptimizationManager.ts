@@ -6,7 +6,9 @@ import { MaterialFactory } from '../utils/MaterialFactory';
 import { PERFORMANCE_CONFIG } from '../config/performance';
 import { Logger } from '../utils/Logger';
 import { ErrorHandler } from '../utils/ErrorHandler';
-import { ExtendedObject3D, OptimizationStrategy, OptimizationMetrics } from '../types';
+import { ExtendedObject3D, OptimizationStrategy, OptimizationMetrics, OptimizationConfig } from '../types';
+import { MapboxThree } from './MapboxThree';
+// import { MapboxThree } from './MapboxThree';
 
 /**
  * Core manager class that coordinates all optimization strategies
@@ -21,7 +23,7 @@ export class OptimizationManager {
     private activeStrategies: Set<OptimizationStrategy>;
     private metrics: OptimizationMetrics;
 
-    private constructor() {
+    private constructor(mapboxThree: MapboxThree, config?: OptimizationConfig) {
         this.batchManager = BatchManager.getInstance();
         this.objectPool = ObjectPool.getInstance();
         this.geometryFactory = GeometryFactory.getInstance();
@@ -31,9 +33,9 @@ export class OptimizationManager {
         this.metrics = this.initializeMetrics();
     }
 
-    public static getInstance(): OptimizationManager {
+    public static getInstance(mapboxThree: MapboxThree, config?: OptimizationConfig): OptimizationManager {
         if (!OptimizationManager.instance) {
-            OptimizationManager.instance = new OptimizationManager();
+            OptimizationManager.instance = new OptimizationManager(mapboxThree,config );
         }
         return OptimizationManager.instance;
     }

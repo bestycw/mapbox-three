@@ -79,7 +79,7 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
     },
 
     // 性能优化配置
-    performance: {
+    optimization: {
         // 批处理
         batching: {
             enabled: true,

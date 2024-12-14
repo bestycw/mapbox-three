@@ -10,13 +10,6 @@ export type GeometryType = 'sphere' | 'box' | 'tube' | 'line';
 export type UnitType = 'scene' | 'meters';
 export type EasingType = keyof typeof EASING;
 
-// Object options
-export interface ObjectOptions {
-    units?: UnitType;
-    isGeoGroup?: boolean;
-    [key: string]: any;
-}
-
 // Core interfaces
 export interface MapboxThreeOptions {
     defaultLights?: boolean;
@@ -87,23 +80,23 @@ export interface BoxObject extends BaseObject {
     height?: number;
     depth?: number;
 }
-
+export interface UserData {
+    units?: UnitType;
+    isUser?: boolean;
+    animationId?: string;
+    poolType?: string;
+    [key: string]: any;
+}
 // Extended Three.js object
 export interface ExtendedObject3D extends THREE.Object3D {
     _mapboxThree?: MapboxThree;
     geometry?: THREE.BufferGeometry;
     material?: THREE.Material | THREE.Material[];
-    setCoord?: (coords: Coordinates) => void;
-    getCoord?: () => Coordinates;
-    setAltitude?: (altitude: number) => void;
-    getAltitude?: () => number;
-    userData: {
-        units?: UnitType;
-        isGeoGroup?: boolean;
-        animationId?: string;
-        poolType?: string;
-        [key: string]: any;
-    };
+    setCoords: (coords: Coordinates) => void;
+    getCoords: () => Coordinates;
+    setAltitude: (altitude: number) => void;
+    getAltitude: () => number;
+    userData: UserData;
 }
 
 // Animation types

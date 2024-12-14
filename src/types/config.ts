@@ -87,7 +87,7 @@ export interface ThreeConfig {
 }
 
 // 性能相关配置
-export interface PerformanceConfig {
+export interface OptimizationConfig {
     fps?: number;
     batching?: {
         enabled?: boolean;
@@ -110,7 +110,7 @@ export interface PerformanceConfig {
 export interface MapboxThreeConfig {
     mapbox: MapboxConfig;
     three?: ThreeConfig;
-    performance?: PerformanceConfig;
+    optimization?: OptimizationConfig;
     debug?: boolean;
 }
 

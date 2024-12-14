@@ -70,12 +70,13 @@
             // opacity: 0.8
         });
         // 使用threejs 创建一个box
-        const box2 = new THREE.BoxGeometry(200, 200, 200);
+        const box2 = new THREE.BoxGeometry(10, 10, 10);
         const material = new THREE.MeshBasicMaterial({ color: '#00ff00' });
         const boxMesh = new THREE.Mesh(box2, material);
         // 添加到场景
         // mapboxThree.add(box);
         mapboxThree.add(boxMesh).setCoords([-74.5, 40])
+        // console.log(boxMesh)
     </script>
 </body>
 </html> 
