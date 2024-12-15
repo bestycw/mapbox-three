@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapboxThree - LOD Example</title>
+    <script src="https://unpkg.com/three@0.158.0/build/three.js"></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body { margin: 0; }
+        #map { width: 100vw; height: 100vh; }
+        #info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+        }
+        #controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="info">
+        <h3>LOD (Level of Detail) Demo</h3>
+        <p>Camera Distance: <span id="distance">0</span>m</p>
+        <p>Current Detail Level: <span id="detail">100</span>%</p>
+        <p>Vertex Count: <span id="vertices">0</span></p>
+    </div>
+    <div id="controls">
+        <button id="toggleLOD">Toggle LOD</button>
+        <button id="addSphere">Add Sphere</button>
+        <button id="addCustomLOD">Add Custom LOD</button>
+    </div>
+
+    <script type="module">
+        import { MapboxThree } from '../../src/core/MapboxThree.ts';
+        import * as THREE from 'three';
+        // import { config } from '../config.js';
+
+        let mapboxThree;
+        const config = {
+            mapbox: {
+                container: 'map',
+                style: 'mapbox://styles/mapbox/dark-v11',
+                accessToken: 'pk.eyJ1IjoiYmVzdHljdyIsImEiOiJja3Y2YXIzNWY0enJyMzBzN2ppNjJlNTBvIn0.IaK_Aa29ojBVAvglMPiQcg',
+                center: [-74.5, 40],
+                zoom: 9,
+                pitch: 45,
+                bearing: 0
+            },
+            three: {
+                renderer: {
+                    antialias: true,
+                    alpha: true
+                },
+                lights: {
+                    ambient: {
+                        enabled: true,
+                        color: '#ffffff',
+                        intensity: 0.5
+                    },
+                }
+            },
+        };
+        // 初始化 MapboxThree
+        async function init() {
+            mapboxThree = new MapboxThree(config);
+            await mapboxThree.init();
+            // await mapboxThxree.init();
+            addSphere();
+            // setupHooks();
+        }
+
+        // 添加球体
+        function addSphere() {
+            const box2 = new THREE.BoxGeometry(100, 100, 100);
+            const material = new THREE.MeshBasicMaterial({ color: '#00ff00' });
+            const boxMesh = new THREE.Mesh(box2, material);
+            
+            // 随机位置
+            const lat = 40 + (Math.random() - 0.5) * 2;
+            const lng = -74.5 + (Math.random() - 0.5) * 2;
+            console.log([lng,lat])
+            mapboxThree.add(boxMesh).setCoords([lng,lat]);
+            console.log(boxMesh)
+        }
+
+        // 添加自定义LOD级别的对象
+        function addCustomLOD() {
+            const geometry = new THREE.SphereGeometry(200, 64, 64);
+            const material = new THREE.MeshPhongMaterial({ 
+                color: 0xff0000,
+                wireframe: true 
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            
+            const lat = 40 + (Math.random() - 0.5) * 2;
+            const lng = -74.5 + (Math.random() - 0.5) * 2;
+            
+            mapboxThree.add(sphere, {
+                coordinates: [lng, lat],
+                altitude: 1000
+            }, {
+                lodLevels: [
+                    { distance: 0, detail: 1 },
+                    { distance: 800, detail: 0.6 },
+                    { distance: 1500, detail: 0.3 },
+                    { distance: 3000, detail: 0.1 }
+                ]
+            });
+        }
+
+        // 设置LOD钩子以更新UI
+        function setupHooks() {
+            const lodManager = mapboxThree.getOptimizationManager().getLODManager();
+            lodManager.setHooks(
+                (object, distance) => {
+                    document.getElementById('distance').textContent = Math.round(distance);
+                },
+                (object) => {
+                    if (object instanceof THREE.LOD && object.getCurrentLevel() !== -1) {
+                        const currentObject = object.getObjectForDistance(object.getCurrentLevel());
+                        if (currentObject instanceof THREE.Mesh) {
+                            const vertexCount = currentObject.geometry.getAttribute('position').count;
+                            document.getElementById('vertices').textContent = vertexCount;
+                            const detail = Math.round((vertexCount / 4096) * 100); // 4096 是最高细节度的顶点数
+                            document.getElementById('detail').textContent = detail;
+                        }
+                    }
+                }
+            );
+        }
+
+        // 切换LOD功能
+        function toggleLOD() {
+            const lodManager = mapboxThree.getOptimizationManager().getLODManager();
+            const config = lodManager.getGlobalConfig();
+            lodManager.setEnabled(!config.enabled);
+        }
+
+        // 添加事件监听器
+        document.getElementById('toggleLOD').addEventListener('click', toggleLOD);
+        document.getElementById('addSphere').addEventListener('click', addSphere);
+        document.getElementById('addCustomLOD').addEventListener('click', addCustomLOD);
+
+        // 启动应用
+        init();
+    </script>
+</body>
+</html>

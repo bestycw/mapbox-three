@@ -92,10 +92,10 @@ export interface ExtendedObject3D extends THREE.Object3D {
     _mapboxThree?: MapboxThree;
     geometry?: THREE.BufferGeometry;
     material?: THREE.Material | THREE.Material[];
-    setCoords: (coords: Coordinates) => void;
-    getCoords: () => Coordinates;
-    setAltitude: (altitude: number) => void;
-    getAltitude: () => number;
+    setCoords?: (coords: Coordinates) => void;
+    getCoords?: () => Coordinates;
+    setAltitude?: (altitude: number) => void;
+    getAltitude?: () => number;
     userData: UserData;
 }
 

@@ -106,6 +106,18 @@ export interface OptimizationConfig {
     };
 }
 
+/**
+ * 单个对象的自定义配置
+ */
+export interface CustomConfig {
+    disableLOD?: boolean;
+    lodLevels?: Array<{
+        distance: number;
+        detail: number;
+    }>;
+    // 后续可以添加其他优化配置
+}
+
 // 完整配置接口
 export interface MapboxThreeConfig {
     mapbox: MapboxConfig;

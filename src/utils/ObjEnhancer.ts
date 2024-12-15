@@ -21,7 +21,8 @@ export function enhancedObj(obj: ExtendedObject3D): ExtendedObject3D {
     };
 
     // 添加高度控制方法
-    enhanced.setAltitude = function(altitude: number): ExtendedObject3D {
+    enhanced.setAltitude = function(this: ExtendedObject3D, altitude: number): ExtendedObject3D {
+        if(!this.getCoords || !this.setCoords) return this;
         const coords = this.getCoords();
         const worldPos = GeoUtils.projectToWorld(coords, altitude);
         this.position.copy(worldPos);
@@ -49,9 +50,11 @@ export function initUserData(obj: ExtendedObject3D, userOptions: UserData ={}): 
         const [x, y, z] = userOptions.rotation;
         obj.rotation.set(x, y, z);
     }
+    //应该是obj的userData和userOptions的合并
     obj.userData = {
         isUser: true,
         units: 'meters',
+        ...obj.userData,
         ...userOptions,
     };
     return obj;

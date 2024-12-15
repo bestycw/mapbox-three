@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 // import { ObjectFactory } from '../objects/ObjectFactory';
 import { Logger } from '../utils/Logger';
 import { ErrorHandler } from '../utils/ErrorHandler';
-import { CameraConfig, LightsConfig, MapboxThreeConfig, OptimizationConfig, RendererConfig, SceneConfig } from '../types/config';
+import { CameraConfig, LightsConfig, MapboxThreeConfig, OptimizationConfig, RendererConfig, SceneConfig, CustomConfig } from '../types/config';
 import { DEFAULT_CONFIG } from '../config/DefaultConfig';
 import { deepMerge } from '../utils/deepMerge';
 import {
@@ -89,16 +89,11 @@ export class MapboxThree {
         // 初始化灯光
         this.setupLights(three?.lights);
         // 初始化优化管理器
-
         this.setupManager(optimization);
     }
 
     private setupManager(config?: OptimizationConfig): void {
-        // this.batchManager = new BatchManager(this);
-        console.log('setupManager', config);
         this.optimizationManager = OptimizationManager.getInstance(this, config);
-
-        
     }
 
     private setupScene(config?: SceneConfig): void {
@@ -168,11 +163,14 @@ export class MapboxThree {
 
     private render(): void {
         try {
-            // // 更新相机
-            // this.cameraSync.update();
+            // 更新相机
+            this.cameraSync.update();
 
-            // const cameraMat = new THREE.Matrix4().fromArray(matrix);
-            // this.camera.projectionMatrix.copy(cameraMat);
+            // 更新LOD
+            if (this.optimizationManager) {
+                this.optimizationManager.updateLOD(this.camera);
+            }
+
             if (this.map.repaint) {
                 this.map.repaint = false;
             }
@@ -191,8 +189,18 @@ export class MapboxThree {
     }
 
     // 公共API
-    public add(object: ExtendedObject3D, userOptions?: UserData): ExtendedObject3D {
+    public add(object: ExtendedObject3D, userOptions?: UserData,config?:CustomConfig): ExtendedObject3D {
+   
+        
+        // 如果启用了LOD优化且没有在userOptions中禁用，则应用LOD
+        if (this.optimizationManager && 
+            this.config.optimization?.lod?.enabled && 
+            !config?.disableLOD) {
+            object = this.optimizationManager.setupLOD(object,config?.lodLevels) as ExtendedObject3D;
+        }
+
         formatObj(object, userOptions);
+        // console.log(object.setCoords);
         //如果是mesh，则添加到世界
         if (object instanceof THREE.Mesh || object instanceof THREE.Group) {
             this.world.add(object);
@@ -205,11 +213,15 @@ export class MapboxThree {
         if (object instanceof THREE.PerspectiveCamera) {
             this.scene.add(object);
         }
-
+        console.log(object)
         return object;
     }
 
     public remove(object: ExtendedObject3D): this {
+        // 如果对象有LOD，移除LOD
+        if (this.optimizationManager) {
+            this.optimizationManager.removeLOD(object);
+        }
         this.world.remove(object);
         return this;
     }
@@ -217,5 +229,12 @@ export class MapboxThree {
     public dispose(): void {
         this.renderer?.dispose();
         this.map?.remove();
+    }
+
+    /**
+     * 获取优化管理器实例
+     */
+    public getOptimizationManager(): OptimizationManager {
+        return this.optimizationManager;
     }
 } 

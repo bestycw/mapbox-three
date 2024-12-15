@@ -3,6 +3,7 @@ import { MERCATOR_A, DEG2RAD, PROJECTION_WORLD_SIZE, EARTH_CIRCUMFERENCE } from 
 import { Coordinates } from '../types/index';
 
 export class GeoUtils {
+    // 将坐标投影到世界坐标
     static projectToWorld(coords: Coordinates, altitude = 0): THREE.Vector3 {
         const [lng, lat] = coords;
         const projected = [
