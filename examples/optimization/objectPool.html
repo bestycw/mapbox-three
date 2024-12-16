@@ -187,6 +187,10 @@
                 pitch: 45,
                 bearing: 0
             },
+
+            three: {
+                autoRender: false
+            },
             optimization: {
                 objectPool: poolConfig
             }
@@ -373,7 +377,7 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            
+            mapboxThree.render();
             const currentTime = performance.now();
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;

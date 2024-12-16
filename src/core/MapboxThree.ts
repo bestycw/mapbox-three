@@ -72,7 +72,9 @@ export class MapboxThree {
 
             },
             render: () => {
-                this.render();
+                if(this.config.three?.autoRender){
+                    this.render();
+                }
             }
         };
     }
@@ -161,7 +163,7 @@ export class MapboxThree {
         }
     }
 
-    private render(): void {
+    public render(): void {
         try {
             // 更新相机
             // this.cameraSync.update();
@@ -197,7 +199,6 @@ export class MapboxThree {
             !lod?.disableLOD) {
             object = this.optimizationManager.setupLOD(object,lod?.lodLevels) as ExtendedObject3D;
         }
-        // console.log(object)
         formatObj(object, userOptions);
         
         //如果是mesh，则添加到世界
@@ -212,7 +213,6 @@ export class MapboxThree {
         if (object instanceof THREE.PerspectiveCamera) {
             this.scene.add(object);
         }
-        console.log(object)
         if(coordinates && object.setCoords){
             object.setCoords(coordinates)
         }

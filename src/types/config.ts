@@ -84,6 +84,7 @@ export interface ThreeConfig {
     scene?: SceneConfig;
     lights?: LightsConfig;
     renderMode?: 'auto' | 'manual' | 'ondemand';
+    autoRender?: boolean;
 }
 
 // 性能相关配置

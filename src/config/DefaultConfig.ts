@@ -75,7 +75,7 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
 
         // 渲染模式
         renderMode: 'auto',  // 'auto' | 'manual' | 'ondemand'
-        // autoRotate: false
+        autoRender: true
     },
 
     // 性能优化配置
