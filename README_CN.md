@@ -22,74 +22,206 @@
 该库包含一个全面的优化系统，用于处理大规模3D可视化：
 
 #### 优化策略
-- **几何体批处理**
-  - 合并相似几何体以减少绘制调用
-  - 自动批次管理
-  - 可配置批次大小
 
-- **实例化渲染**
-  - 高效渲染重复对象
-  - 自动实例管理
-  - 矩阵变换支持
+##### 细节层次 (LOD)
+LOD系统通过根据观察距离动态调整对象的细节级别来优化渲染性能。
 
-- **对象池**
-  - 对象复用以减少垃圾回收压力
-  - 自动生命周期管理
-  - 支持多种对象类型
+**使用场景**：
+- 大规模3D模型的渲染
+- 远近景物的细节控制
+- 复杂地形或建筑模型
+- 需要在性能和视觉质量之间平衡的场景
 
-- **细节层次 (LOD)**
-  - 基于距离的细节调整
-  - 多级细节支持
-  - 平滑过渡
+**核心功能**：
+- 基于距离的自动细节调整
+- 支持自定义LOD级别
+- 平滑的细节过渡效果
+- 动态性能调整
+- 内存优化的几何体管理
 
-- **空间索引**
-  - 基于八叉树的空间分区
-  - 高效空间查询
-  - 自动索引更新
-
-#### 性能配置
+**配置示例**：
 ```typescript
-const performanceConfig = {
-    // 批处理
-    batchingEnabled: true,
-    batchSize: 1000,        // 每批次最大对象数
-    maxBatches: 100,        // 最大批次数
-    
-    // 实例化
-    instanceThreshold: 100,  // 触发实例化的最小相似对象数
-    maxInstances: 10000,    // 每个实例化网格的最大实例数
-    
-    // 对象池
-    poolEnabled: true,
-    poolTypes: ['sphere', 'box', 'line', 'tube'],
-    maxObjectsInPool: 10000,
-    
-    // LOD配置
-    lodLevels: {
-        near: { distance: 100, detail: 1.0 },    // 近距离：全细节
-        medium: { distance: 500, detail: 0.5 },   // 中距离：半细节
-        far: { distance: 1000, detail: 0.25 }     // 远距离：低细节
+const config = {
+    optimization: {
+        lod: {
+            enabled: true,                // 启用LOD
+            dynamicAdjustment: true,     // 启用动态调整
+            transitionDuration: 300,      // 过渡动画时长(ms)
+            performanceTarget: 60,        // 目标帧率
+            levels: [
+                { distance: 0, detail: 1 },      // 近距离：完整细节
+                { distance: 1000, detail: 0.5 }, // 中距离：一半细节
+                { distance: 2000, detail: 0.25 } // 远距离：四分之一细节
+            ]
+        }
     }
 };
 ```
 
-#### 使用示例
+**使用示例**：
 ```typescript
-// 初始化优化管理器
-const optimizationManager = OptimizationManager.getInstance();
+// 使用默认LOD配置
+mapboxThree.add(object);
 
-// 启用优化策略
-optimizationManager.enableStrategy('batching');
-optimizationManager.enableStrategy('instancing');
-optimizationManager.enableStrategy('lod');
+// 使用自定义LOD配置
+mapboxThree.add(object, {}, {
+    lod: {
+        lodLevels: [
+            { distance: 0, detail: 1 },
+            { distance: 1000, detail: 0.6 },
+            { distance: 2000, detail: 0.3 }
+        ]
+    }
+});
 
-// 处理对象
-const object = new ExtendedObject3D();
-optimizationManager.processObject(object);
+// 使用不同几何体作为LOD级别
+const highDetail = new THREE.TorusKnotGeometry(100, 30, 128, 32);
+const mediumDetail = new THREE.TorusKnotGeometry(100, 30, 64, 16);
+const lowDetail = new THREE.TorusKnotGeometry(100, 30, 32, 8);
 
-// 监控性能
-const metrics = optimizationManager.getMetrics();
+mapboxThree.add(highMesh, {}, {
+    lod: {
+        lodLevels: [
+            { distance: 0, detail: highMesh },
+            { distance: 1000, detail: mediumMesh },
+            { distance: 2000, detail: lowMesh }
+        ]
+    }
+});
 ```
+
+##### 对象池
+对象池系统通过重用对象来减少内存分配和��圾回收，提高性能和内存使用效率。
+
+**使用场景**：
+- 频繁创建和销毁的对象（如粒子系统）
+- 大量相似对象的动态管理
+- 需要优化内存使用的场景
+- 实时动画和特效系统
+
+**核心功能**：
+1. 基础功能
+- 自动对象预加载和预热
+- 动态池大小调整
+- 智能内存管理
+- 自动对象重置
+- 性能监控统计
+
+2. 生命周期管理
+- 对象使用次数追踪
+- 空闲时间监控
+- 自动清理策略
+- 对象年龄管理
+
+3. 性能监控
+- 缓存命中率统计
+- 获取时间追踪
+- 内存使用估算
+- 对象周转率计算
+- 峰值使用量记录
+
+4. 预测性扩展
+- 基于历史数据的需求预测
+- 自动扩展池大小
+- 智能预热策略
+- 动态容量调整
+
+**配置示例**：
+```typescript
+const config = {
+    optimization: {
+        objectPool: {
+            enabled: true,           // 启用对象池
+            maxSize: 1000,          // 每个池的最大对象数
+            preloadCount: 50,       // 预加载对象数量
+            autoExpand: true,       // 自动扩展池大小
+            cleanupInterval: 5000,  // 清理间隔(ms)
+            predictiveScaling: true, // 启用预测性扩展
+            minIdleTime: 30000,     // 最小空闲时间(ms)
+            maxIdleTime: 300000,    // 最大空闲时间(ms)
+            warmupCount: 100        // 预热对象数量
+        }
+    }
+};
+```
+
+**使用示例**：
+```typescript
+// 从对象池获取对象
+const object = optimizationManager.acquireFromPool(
+    'particle',
+    () => {
+        // 工厂函数：创建新对象
+        return new THREE.Mesh(
+            new THREE.SphereGeometry(1),
+            new THREE.MeshBasicMaterial()
+        );
+    },
+    (obj) => {
+        // 重置函数：重置对象状态
+        obj.visible = true;
+        obj.position.set(0, 0, 0);
+        obj.scale.set(1, 1, 1);
+    }
+);
+
+// 使用对象
+// ...
+
+// 释放对象回池
+optimizationManager.releaseToPool('particle', object);
+
+// 获取对象池统计信息
+const stats = optimizationManager.getObjectPoolManager().getStats();
+console.log(stats);
+/* 输出示例：
+{
+    "particle": {
+        available: 100,        // 可用对象数
+        inUse: 50,            // 使用中对象数
+        metrics: {
+            hitRate: 0.85,    // 缓存命中率
+            averageAcquisitionTime: 0.5, // 平均获取时间(ms)
+            peakUsage: 200,   // 峰值使用量
+            turnoverRate: 0.4, // 对象周转率
+            memoryUsage: 1024 // 内存使用(bytes)
+        },
+        lifecycle: {
+            averageUseCount: 15,     // 平均使用次数
+            averageTimeInPool: 5000, // 平均池中时间(ms)
+            oldestObject: 1234567890 // 最老对象创建时间
+        }
+    }
+}
+*/
+
+// 清理未使用的对象
+optimizationManager.cleanup();
+```
+
+**性能优化建议**：
+1. 预热策略
+   - 根据预期负载设置适当的预热数量
+   - 在空闲时间进行预热
+   - 使用历史数据调整预热量
+
+2. 内存管理
+   - 设置合理的最大池大小
+   - 配置适当的空闲时间阈值
+   - 定期清理长时间未使用的对象
+
+3. 预测性扩展
+   - 启用预测性扩展以应对负载波动
+   - 监控预测准确度
+   - 根据实际情况调整预测参数
+
+4. 监控和调优
+   - 定期检查性能指标
+   - 关注缓存命中率
+   - 分析对象使用模式
+   - 优化获取和释放策略
+
+这两个优化系统可以结合使用，在处理大规模动态3D场景时提供显著的性能提升。
 
 ### 工具类
 - GeometryFactory: 带缓存的几何体管理

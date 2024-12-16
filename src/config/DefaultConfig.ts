@@ -96,7 +96,7 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
 
         // LOD
         lod: {
-            enabled: true,
+            enabled: false,
             levels: [
                 { distance: 0, detail: 1 },
                 { distance: 1000, detail: 0.5 },
@@ -105,6 +105,19 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
             ]
         },
 
+
+        // 对象池
+        objectPool: {
+            enabled: false,
+            maxSize: 1000,
+            preloadCount: 10,
+            autoExpand: true,
+            cleanupInterval: 60000,
+            predictiveScaling: false,
+            minIdleTime: 30000,
+            maxIdleTime: 300000,
+            warmupCount: 0
+        },
 
         // // 渲染优化
         // rendering: {

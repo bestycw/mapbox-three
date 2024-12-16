@@ -109,7 +109,11 @@ export interface OptimizationConfig {
         maxSize?: number;
         preloadCount?: number;
         autoExpand?: boolean;
+        predictiveScaling?: boolean;
         cleanupInterval?: number;
+        minIdleTime?: number;
+        maxIdleTime?: number;
+        warmupCount?: number;
     };
 }
 

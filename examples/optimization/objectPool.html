@@ -3,65 +3,157 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MapboxThree - Object Pool Example</title>
+    <title>MapboxThree - Advanced Object Pool Example</title>
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
     <style>
         body { margin: 0; }
         #map { width: 100vw; height: 100vh; }
-        #info {
+        .panel {
             position: fixed;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            max-width: 400px;
+        }
+        #info {
             top: 10px;
             left: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 4px;
-            font-family: Arial, sans-serif;
         }
         #controls {
-            position: fixed;
             top: 10px;
             right: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 4px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 10px;
+        }
+        #metrics {
+            bottom: 10px;
+            left: 10px;
+            font-size: 12px;
+        }
+        .metric-group {
+            margin: 10px 0;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+        }
+        .metric-title {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .metric-value {
+            margin-left: 10px;
+            color: #ddd;
         }
         button {
-            padding: 8px;
-            cursor: pointer;
-        }
-        .active {
-            background-color: #4CAF50;
+            padding: 8px 12px;
+            background: #4CAF50;
             color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.active {
+            background: #ff5722;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+        input[type="range"] {
+            flex: 1;
+        }
+        .chart-container {
+            height: 100px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #4CAF50;
+            margin-top: 10px;
+            position: relative;
+        }
+        .chart-bar {
+            position: absolute;
+            bottom: 0;
+            width: 3px;
+            background: #4CAF50;
+            transition: height 0.3s;
+        }
+        .scenario-button {
+            margin: 5px;
+            padding: 5px 10px;
+            background: #2196F3;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .scenario-button:hover {
+            background: #1976D2;
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    <div id="info">
-        <h3>Object Pool Demo</h3>
-        <p>Particles Active: <span id="activeCount">0</span></p>
-        <p>Pool Available: <span id="availableCount">0</span></p>
-        <p>Memory Usage: <span id="memoryUsage">0</span> MB</p>
-        <p>FPS: <span id="fps">0</span></p>
+    <div id="info" class="panel">
+        <h3>高级对象池演示</h3>
+        <div class="metric-group">
+            <div class="metric-title">基本统计</div>
+            <div>活跃粒子: <span id="activeCount" class="metric-value">0</span></div>
+            <div>池中可用: <span id="availableCount" class="metric-value">0</span></div>
+            <div>内存使用: <span id="memoryUsage" class="metric-value">0 MB</span></div>
+            <div>FPS: <span id="fps" class="metric-value">0</span></div>
+        </div>
     </div>
-    <div id="controls">
-        <button id="toggleSpawn">Start Spawning</button>
-        <button id="spawnBurst">Spawn Burst</button>
-        <button id="clearAll">Clear All</button>
+    <div id="controls" class="panel">
         <div>
-            Spawn Rate: <input type="range" id="spawnRate" min="1" max="100" value="10">
+            <button id="toggleSpawn">开始生成</button>
+            <button id="spawnBurst">生成爆发</button>
+            <button id="clearAll">清除全部</button>
+        </div>
+        <div class="slider-container">
+            生成速率: <input type="range" id="spawnRate" min="1" max="100" value="10">
             <span id="spawnRateValue">10</span>/s
+        </div>
+        <div>
+            <div class="metric-title">场景测试</div>
+            <button class="scenario-button" data-scenario="highLoad">高负载测试</button>
+            <button class="scenario-button" data-scenario="bursty">突发负载测试</button>
+            <button class="scenario-button" data-scenario="memory">内存压力测试</button>
+        </div>
+    </div>
+    <div id="metrics" class="panel">
+        <div class="metric-group">
+            <div class="metric-title">性能指标</div>
+            <div>缓存命中率: <span id="hitRate" class="metric-value">0%</span></div>
+            <div>获取时间: <span id="acquisitionTime" class="metric-value">0ms</span></div>
+            <div>周转率: <span id="turnoverRate" class="metric-value">0</span></div>
+            <div>峰值使用: <span id="peakUsage" class="metric-value">0</span></div>
+        </div>
+        <div class="metric-group">
+            <div class="metric-title">生命周期</div>
+            <div>平均使用次数: <span id="avgUseCount" class="metric-value">0</span></div>
+            <div>平均池中时间: <span id="avgPoolTime" class="metric-value">0ms</span></div>
+            <div>最老对象年龄: <span id="oldestObject" class="metric-value">0s</span></div>
+        </div>
+        <div class="metric-group">
+            <div class="metric-title">预测分析</div>
+            <div>预测需求: <span id="predictedDemand" class="metric-value">0</span></div>
+            <div>预测准确度: <span id="predictionAccuracy" class="metric-value">0%</span></div>
+            <div class="chart-container" id="demandChart"></div>
         </div>
     </div>
 
     <script type="module">
         import { MapboxThree } from '../../src/core/MapboxThree.ts';
         import * as THREE from 'three';
-        import {config as defaultConfig} from '../config.js';
+        import { config as defaultConfig } from '../config.js';
 
         let mapboxThree;
         let isSpawning = false;
@@ -69,6 +161,21 @@
         let lastTime = performance.now();
         let frameCount = 0;
         const particles = new Set();
+        let demandHistory = [];
+        const CHART_POINTS = 30;
+
+        // 配置对象池
+        const poolConfig = {
+            enabled: true,
+            maxSize: 2000,
+            preloadCount: 100,
+            autoExpand: true,
+            cleanupInterval: 5000,
+            predictiveScaling: true,
+            minIdleTime: 10000,
+            maxIdleTime: 30000,
+            warmupCount: 200
+        };
 
         const config = {
             mapbox: {
@@ -80,32 +187,8 @@
                 pitch: 45,
                 bearing: 0
             },
-            three: {
-                renderer: {
-                    antialias: true,
-                    alpha: true
-                },
-                lights: {
-                    ambient: {
-                        enabled: true,
-                        color: '#ffffff',
-                        intensity: 0.5
-                    },
-                    directional: {
-                        enabled: true,
-                        color: '#ffffff',
-                        intensity: 1.0
-                    }
-                }
-            },
             optimization: {
-                objectPool: {
-                    enabled: true,
-                    maxSize: 1000,
-                    preloadCount: 50,
-                    autoExpand: true,
-                    cleanupInterval: 5000
-                }
+                objectPool: poolConfig
             }
         };
 
@@ -113,14 +196,16 @@
             mapboxThree = new MapboxThree(config);
             await mapboxThree.init();
             setupEventListeners();
+            setupDemandChart();
             animate();
         }
 
+        // 创建粒子
         function createParticle() {
             return mapboxThree.getOptimizationManager().acquireFromPool(
                 'particle',
                 () => {
-                    const geometry = new THREE.SphereGeometry(10, 8, 8);
+                    const geometry = new THREE.SphereGeometry(5, 8, 8);
                     const material = new THREE.MeshPhongMaterial({
                         color: new THREE.Color().setHSL(Math.random(), 1, 0.5),
                         transparent: true,
@@ -129,24 +214,26 @@
                     return new THREE.Mesh(geometry, material);
                 },
                 (particle) => {
-                    // 重置粒子状态
                     particle.visible = true;
-                    particle.scale.set(1, 1, 1);
                     particle.material.opacity = 0.8;
                     
-                    // 随机位置
-                    const lat = 40 + (Math.random() - 0.5) * 0.1;
-                    const lng = -74.5 + (Math.random() - 0.5) * 0.1;
-                    const height = 100 + Math.random() * 500;
+                    // 随机位置和运动参数
+                    const lat = 40 + (Math.random() - 0.5) * 0.05;
+                    const lng = -74.5 + (Math.random() - 0.5) * 0.05;
+                    const height = 50 + Math.random() * 300;
 
-                    // 设置随机速度和生命周期
                     particle.userData.velocity = new THREE.Vector3(
-                        (Math.random() - 0.5) * 2,
-                        Math.random() * 2,
-                        (Math.random() - 0.5) * 2
+                        (Math.random() - 0.5) * 4,
+                        Math.random() * 4,
+                        (Math.random() - 0.5) * 4
                     );
                     particle.userData.lifetime = 3 + Math.random() * 2;
                     particle.userData.age = 0;
+                    particle.userData.rotationSpeed = new THREE.Vector3(
+                        Math.random() * 2,
+                        Math.random() * 2,
+                        Math.random() * 2
+                    );
 
                     mapboxThree.add(particle, {}, {
                         coordinates: [lng, lat, height]
@@ -161,9 +248,8 @@
             updateStats();
         }
 
-        function spawnBurst() {
-            const burstCount = 50;
-            for (let i = 0; i < burstCount; i++) {
+        function spawnBurst(count = 100) {
+            for (let i = 0; i < count; i++) {
                 spawnParticle();
             }
         }
@@ -173,22 +259,116 @@
                 particle.userData.age += deltaTime;
 
                 if (particle.userData.age >= particle.userData.lifetime) {
-                    // 回收粒子
                     particles.delete(particle);
                     mapboxThree.remove(particle);
                     mapboxThree.getOptimizationManager().releaseToPool('particle', particle);
                 } else {
-                    // 更新粒子位置
-                    // const coords = particle.getCoords();
                     const velocity = particle.userData.velocity;
+                    const rotationSpeed = particle.userData.rotationSpeed;
                     const progress = particle.userData.age / particle.userData.lifetime;
                     
-                    // 应用速度和衰减
+                    // 更新位置
                     particle.position.add(velocity.clone().multiplyScalar(deltaTime * 50));
+                    
+                    // 更新旋转
+                    particle.rotation.x += rotationSpeed.x * deltaTime;
+                    particle.rotation.y += rotationSpeed.y * deltaTime;
+                    particle.rotation.z += rotationSpeed.z * deltaTime;
+                    
+                    // 更新缩放和透明度
+                    const scale = 1 - progress * 0.5;
+                    particle.scale.setScalar(scale);
                     particle.material.opacity = 0.8 * (1 - progress);
-                    particle.scale.setScalar(1 - progress * 0.5);
                 }
             });
+        }
+
+        function updateStats() {
+            const stats = mapboxThree.getOptimizationManager().getObjectPoolManager().getStats().particle;
+            if (!stats) return;
+
+            // 更新基本统计
+            document.getElementById('activeCount').textContent = particles.size;
+            document.getElementById('availableCount').textContent = stats.available;
+            document.getElementById('memoryUsage').textContent = 
+                (stats.metrics.memoryUsage / (1024 * 1024)).toFixed(2);
+
+            // 更新性能指标
+            document.getElementById('hitRate').textContent = 
+                (stats.metrics.hitRate * 100).toFixed(1) + '%';
+            document.getElementById('acquisitionTime').textContent = 
+                stats.metrics.averageAcquisitionTime.toFixed(2) + 'ms';
+            document.getElementById('turnoverRate').textContent = 
+                stats.metrics.turnoverRate.toFixed(2);
+            document.getElementById('peakUsage').textContent = stats.metrics.peakUsage;
+
+            // 更新生命周期信息
+            document.getElementById('avgUseCount').textContent = 
+                stats.lifecycle.averageUseCount.toFixed(1);
+            document.getElementById('avgPoolTime').textContent = 
+                (stats.lifecycle.averageTimeInPool / 1000).toFixed(1) + 's';
+            document.getElementById('oldestObject').textContent = 
+                ((performance.now() - stats.lifecycle.oldestObject) / 1000).toFixed(1) + 's';
+
+            // 更新需求图表
+            updateDemandChart(particles.size);
+        }
+
+        function setupDemandChart() {
+            const chart = document.getElementById('demandChart');
+            for (let i = 0; i < CHART_POINTS; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.left = (i * (100 / CHART_POINTS)) + '%';
+                chart.appendChild(bar);
+            }
+        }
+
+        function updateDemandChart(currentDemand) {
+            demandHistory.push(currentDemand);
+            if (demandHistory.length > CHART_POINTS) {
+                demandHistory.shift();
+            }
+
+            const maxDemand = Math.max(...demandHistory, 1);
+            const bars = document.querySelectorAll('.chart-bar');
+            
+            demandHistory.forEach((demand, i) => {
+                const height = (demand / maxDemand) * 100;
+                bars[i].style.height = height + '%';
+            });
+        }
+
+        function runScenario(type) {
+            switch (type) {
+                case 'highLoad':
+                    // 高负载测试
+                    isSpawning = true;
+                    document.getElementById('spawnRate').value = 50;
+                    document.getElementById('spawnRateValue').textContent = 50;
+                    spawnBurst(500);
+                    break;
+                    
+                case 'bursty':
+                    // 突发负载测试
+                    const burstInterval = setInterval(() => {
+                        spawnBurst(200);
+                    }, 2000);
+                    setTimeout(() => clearInterval(burstInterval), 10000);
+                    break;
+                    
+                case 'memory':
+                    // 内存压力测试
+                    isSpawning = true;
+                    document.getElementById('spawnRate').value = 20;
+                    document.getElementById('spawnRateValue').textContent = 20;
+                    setInterval(() => {
+                        if (particles.size > 1000) {
+                            mapboxThree.getOptimizationManager().cleanup();
+                        }
+                    }, 1000);
+                    break;
+            }
         }
 
         function animate() {
@@ -218,32 +398,20 @@
 
             // 更新所有粒子
             updateParticles(deltaTime);
-
-            // 更新统计信息
             updateStats();
 
-            // 清理未使用的对象
+            // 定期清理
             mapboxThree.getOptimizationManager().cleanup();
-        }
-
-        function updateStats() {
-            const stats = mapboxThree.getOptimizationManager().getObjectPoolManager().getStats();
-            document.getElementById('activeCount').textContent = particles.size;
-            document.getElementById('availableCount').textContent = stats.particle?.available || 0;
-            
-            // 估算内存使用
-            const memoryUsage = (particles.size * (8 * 8 * 8 * 3 + 4 * 4)) / (1024 * 1024);
-            document.getElementById('memoryUsage').textContent = memoryUsage.toFixed(2);
         }
 
         function setupEventListeners() {
             document.getElementById('toggleSpawn').addEventListener('click', (e) => {
                 isSpawning = !isSpawning;
-                e.target.textContent = isSpawning ? 'Stop Spawning' : 'Start Spawning';
+                e.target.textContent = isSpawning ? '停止生成' : '开始生成';
                 e.target.classList.toggle('active', isSpawning);
             });
 
-            document.getElementById('spawnBurst').addEventListener('click', spawnBurst);
+            document.getElementById('spawnBurst').addEventListener('click', () => spawnBurst(200));
 
             document.getElementById('clearAll').addEventListener('click', () => {
                 particles.forEach(particle => {
@@ -256,6 +424,12 @@
 
             document.getElementById('spawnRate').addEventListener('input', (e) => {
                 document.getElementById('spawnRateValue').textContent = e.target.value;
+            });
+
+            document.querySelectorAll('.scenario-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    runScenario(e.target.dataset.scenario);
+                });
             });
         }
 
