@@ -29,7 +29,7 @@ export class MapboxThree {
     private optimizationManager!: OptimizationManager;
     public world!: THREE.Group;
     public isInitialized: boolean = false;
-
+    public virtualCamera!: THREE.Camera;
     private readonly logger: Logger;
     private readonly errorHandler: ErrorHandler;
     private readonly layerId: string = 'mapbox-three-layer';
@@ -89,7 +89,7 @@ export class MapboxThree {
         // 初始化灯光
         this.setupLights(three?.lights);
         // 初始化优化管理器
-        // this.setupManager(optimization);
+        this.setupManager(optimization);
     }
 
     private setupManager(config?: OptimizationConfig): void {
@@ -127,7 +127,8 @@ export class MapboxThree {
         this.cameraSync = new CameraSync(
             this.map,
             this.camera,
-            this.world
+            this.world,
+            this
         );
 
         // 如果配置中启用了相机同步
@@ -167,7 +168,7 @@ export class MapboxThree {
 
             // 更新LOD（使用更新后的相机位置）
             if (this.optimizationManager) {
-                this.optimizationManager.updateLOD(this.camera);
+                this.optimizationManager.updateLOD();
             }
 
             if (this.map.repaint) {
@@ -197,7 +198,7 @@ export class MapboxThree {
             !config?.disableLOD) {
             object = this.optimizationManager.setupLOD(object,config?.lodLevels) as ExtendedObject3D;
         }
-
+        // console.log(object)
         formatObj(object, userOptions);
 
         //如果是mesh，则添加到世界

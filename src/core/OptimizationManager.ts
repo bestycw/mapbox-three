@@ -16,7 +16,7 @@ export class OptimizationManager {
     private constructor(mapboxThree: MapboxThree, config?: OptimizationConfig) {
         this.mapboxThree = mapboxThree;
         this.config = config || {};
-        this.lodManager = new LODManager(config?.lod);
+        this.lodManager = new LODManager(this.mapboxThree, config?.lod);
     }
 
     /**
@@ -39,8 +39,8 @@ export class OptimizationManager {
     /**
      * 更新LOD对象
      */
-    public updateLOD(camera: THREE.Camera): void {
-        this.lodManager.update(camera);
+    public updateLOD(): void {
+        this.lodManager.update();
     }
 
     /**

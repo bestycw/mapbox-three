@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Map } from 'mapbox-gl';
 import { utils } from '../utils/utils';
 import * as Constants from '../config/constants';
+import { MapboxThree } from 'main';
+import { GeoUtils } from '../utils/GeoUtils';
 
 interface CameraSyncState {
     fov: number;
@@ -19,12 +21,13 @@ export class CameraSync {
     world: THREE.Group;
     active: boolean;
     state: CameraSyncState;
+    mapboxThree: MapboxThree;
 
-    constructor(map: Map, camera: THREE.PerspectiveCamera, world?: THREE.Group) {
+    constructor(map: Map, camera: THREE.PerspectiveCamera, world: THREE.Group, mapboxThree: MapboxThree) {
         this.map = map;
         this.camera = camera;
         this.active = true;
-
+        this.mapboxThree = mapboxThree;
         this.camera.matrixAutoUpdate = false;   // We're in charge of the camera now!
 
         // Position and configure the world group so we can scale it appropriately when the camera zooms
@@ -66,38 +69,20 @@ export class CameraSync {
             console.log('nocamera');
             return;
         }
-
+        //用一个虚拟的camera，用来后续计算，本身mapbox的相机只是同步了矩阵，但是没有同步position
+        const mapboxCamera = this.map.getFreeCameraOptions();
+ 
+        const position = mapboxCamera.position;
         const t = this.map.transform as any;
-
-        // Calculate z distance of the farthest fragment that should be rendered.
+        // console.log(t.scale,this.map.getScaleFactor())
+        const cameraCenter = this.map.getCenter();
+        const cameraCenterWorld = GeoUtils.projectToWorld([cameraCenter.lng, cameraCenter.lat, position?.toAltitude() || 0]);
+        const virtualCamera= this.camera.clone()
+        virtualCamera.position.set(cameraCenterWorld.x, cameraCenterWorld.y, position?.toAltitude() || 0)
+        this.mapboxThree.virtualCamera = virtualCamera
+        
         const furthestDistance = Math.cos(Math.PI / 2 - t._pitch) * this.state.topHalfSurfaceDistance! + this.state.cameraToCenterDistance!;
-
-        // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
         const farZ = furthestDistance * 1.01;
-        const halfFov = this.state.fov / 2;
-        // const t = this.map.transform as any;
-
-        // 计算相机高度（z值）
-        const zoom = this.map.getZoom();
-        const height = 0.5 / Math.tan(halfFov) * t.height * Math.pow(2, -zoom);
-
-        // 获取地图中心点的投影坐标
-        const center = t.point;
-        // console.log(t.point)
-        const scaleCamera = t.scale * this.state.worldSizeRatio;
-
-        // 设置相机位置（使用投影坐标 + 高度）
-        this.camera.position.set(
-            center.x * scaleCamera,
-            -center.y * scaleCamera,  // Mapbox和Three.js的Y轴方向相反
-            height
-        );
-        // 设置相机旋转
-        this.camera.rotation.set(
-            t._pitch,  // X轴旋转（俯仰角）
-            0,         // Y轴旋转
-            -t.angle   // Z轴旋转（方位角）
-        );
         this.camera.projectionMatrix = utils.makePerspectiveMatrix(this.state.fov, t.width / t.height, 1, farZ);
 
         const cameraWorldMatrix = new THREE.Matrix4();

@@ -11,6 +11,12 @@ export function enhancedObj(obj: ExtendedObject3D): ExtendedObject3D {
     obj.userData.isUser = true;
     // 添加地理坐标方法
     enhanced.setCoords = function(coords: Coordinates): ExtendedObject3D {
+        // console.log(obj.userData.units)
+        if (obj.userData.units === 'meters') {
+            const s = GeoUtils.projectedUnitsPerMeter(coords[1]);
+            // console.log(s)
+            this.scale.set(s, s, s);
+        }
         const worldPos = GeoUtils.projectToWorld(coords);
         this.position.copy(worldPos);
         return this;
@@ -61,11 +67,12 @@ export function initUserData(obj: ExtendedObject3D, userOptions: UserData ={}): 
 }
 
 export function formatObj(object: ExtendedObject3D, userOptions: UserData ={}): ExtendedObject3D {
-    if (!object.setCoords) {
-        enhancedObj(object);
-    }
     if(!object.userData.isUser){
         initUserData(object, userOptions);
     }
+    if (!object.setCoords) {
+        enhancedObj(object);
+    }
+
     return object;
 }

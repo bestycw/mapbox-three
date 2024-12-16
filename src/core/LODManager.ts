@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ExtendedObject3D } from '../types';
+import { MapboxThree } from 'main';
 
 /**
  * LOD配置接口
@@ -20,8 +21,10 @@ export class LODManager {
     private config: Required<LODConfig>;
     private beforeLODHook?: (object: ExtendedObject3D, distance: number) => void;
     private afterLODHook?: (object: ExtendedObject3D, distance: number) => void;
-
-    constructor(config?: LODConfig) {
+    private mapboxThree: MapboxThree;
+    
+    constructor(mapboxThree: MapboxThree, config?: LODConfig) {
+        this.mapboxThree = mapboxThree;
         this.config = {
             enabled: config?.enabled ?? true,
             levels: config?.levels ?? [
@@ -45,19 +48,10 @@ export class LODManager {
         if (!levels || levels.length === 0) return object;
 
         const lod = new THREE.LOD();
-        // console.log(object.position)
         lod.position.copy(object.position);
         lod.rotation.copy(object.rotation);
         lod.scale.copy(object.scale);
         lod.userData = { ...object.userData };
-
-        // // 如果是ExtendedObject3D，复制其方法
-        // if ('setCoords' in object) {
-        //     (lod as any).setCoords = (object as any).setCoords;
-        //     (lod as any).getCoords = (object as any).getCoords;
-        //     (lod as any).setAltitude = (object as any).setAltitude;
-        //     (lod as any).getAltitude = (object as any).getAltitude;
-        // }
 
         levels.forEach(({ distance, detail }) => {
             const levelObject = this.createLODLevel(object, detail);
@@ -148,13 +142,14 @@ export class LODManager {
     /**
      * 更新LOD对象
      */
-    public update(camera: THREE.Camera): void {
+    public update(): void {
         if (!this.config.enabled) return;
-
+        // console.log(camera.position)
+        const camera = this.mapboxThree.virtualCamera
+        
         this.lodObjects.forEach((lod) => {
-            const distance = camera.position.distanceTo(lod.position);
-            // console.log(distance)
-            console.log(lod.position)
+            const distance =camera.position.distanceTo(lod.position);
+            console.log(distance)
             if (this.beforeLODHook) {
                 this.beforeLODHook(lod, distance);
             }
