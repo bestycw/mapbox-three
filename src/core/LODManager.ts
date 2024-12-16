@@ -153,7 +153,8 @@ export class LODManager {
 
         this.lodObjects.forEach((lod) => {
             const distance = camera.position.distanceTo(lod.position);
-            
+            // console.log(distance)
+            console.log(lod.position)
             if (this.beforeLODHook) {
                 this.beforeLODHook(lod, distance);
             }

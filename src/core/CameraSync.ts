@@ -74,7 +74,30 @@ export class CameraSync {
 
         // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
         const farZ = furthestDistance * 1.01;
+        const halfFov = this.state.fov / 2;
+        // const t = this.map.transform as any;
 
+        // 计算相机高度（z值）
+        const zoom = this.map.getZoom();
+        const height = 0.5 / Math.tan(halfFov) * t.height * Math.pow(2, -zoom);
+
+        // 获取地图中心点的投影坐标
+        const center = t.point;
+        // console.log(t.point)
+        const scaleCamera = t.scale * this.state.worldSizeRatio;
+
+        // 设置相机位置（使用投影坐标 + 高度）
+        this.camera.position.set(
+            center.x * scaleCamera,
+            -center.y * scaleCamera,  // Mapbox和Three.js的Y轴方向相反
+            height
+        );
+        // 设置相机旋转
+        this.camera.rotation.set(
+            t._pitch,  // X轴旋转（俯仰角）
+            0,         // Y轴旋转
+            -t.angle   // Z轴旋转（方位角）
+        );
         this.camera.projectionMatrix = utils.makePerspectiveMatrix(this.state.fov, t.width / t.height, 1, farZ);
 
         const cameraWorldMatrix = new THREE.Matrix4();

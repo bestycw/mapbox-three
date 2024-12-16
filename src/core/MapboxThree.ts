@@ -89,7 +89,7 @@ export class MapboxThree {
         // 初始化灯光
         this.setupLights(three?.lights);
         // 初始化优化管理器
-        this.setupManager(optimization);
+        // this.setupManager(optimization);
     }
 
     private setupManager(config?: OptimizationConfig): void {
@@ -97,7 +97,6 @@ export class MapboxThree {
     }
 
     private setupScene(config?: SceneConfig): void {
-        // if (!config) throw new Error('Scene is not defined');
         this.scene = new THREE.Scene();
         this.world = new THREE.Group();
         this.scene.add(this.world);
@@ -164,9 +163,9 @@ export class MapboxThree {
     private render(): void {
         try {
             // 更新相机
-            this.cameraSync.update();
+            // this.cameraSync.update();
 
-            // 更新LOD
+            // 更新LOD（使用更新后的相机位置）
             if (this.optimizationManager) {
                 this.optimizationManager.updateLOD(this.camera);
             }
@@ -191,7 +190,7 @@ export class MapboxThree {
     // 公共API
     public add(object: ExtendedObject3D, userOptions?: UserData,config?:CustomConfig): ExtendedObject3D {
    
-        
+
         // 如果启用了LOD优化且没有在userOptions中禁用，则应用LOD
         if (this.optimizationManager && 
             this.config.optimization?.lod?.enabled && 
@@ -200,9 +199,9 @@ export class MapboxThree {
         }
 
         formatObj(object, userOptions);
-        // console.log(object.setCoords);
+
         //如果是mesh，则添加到世界
-        if (object instanceof THREE.Mesh || object instanceof THREE.Group) {
+        if (object instanceof THREE.Mesh || object instanceof THREE.Group || object instanceof THREE.LOD) {
             this.world.add(object);
         }
         //如果是灯光，则添加到场景
@@ -232,9 +231,23 @@ export class MapboxThree {
     }
 
     /**
-     * 获取优化管理器实例
+     * 获取优化管理实例
      */
     public getOptimizationManager(): OptimizationManager {
         return this.optimizationManager;
+    }
+
+    /**
+     * 获取地图缩放级别
+     */
+    public getMapZoom(): number {
+        return this.map.getZoom();
+    }
+
+    /**
+     * 获取地图变换对象
+     */
+    public getMapTransform(): any {
+        return this.map.transform;
     }
 } 

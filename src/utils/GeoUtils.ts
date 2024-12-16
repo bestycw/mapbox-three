@@ -8,12 +8,14 @@ export class GeoUtils {
         const [lng, lat] = coords;
         const projected = [
             -MERCATOR_A * DEG2RAD * lng * PROJECTION_WORLD_SIZE,
-            -MERCATOR_A * Math.log(Math.tan((Math.PI * 0.25) + (0.5 * DEG2RAD * lat))) * PROJECTION_WORLD_SIZE
+            -MERCATOR_A * Math.log(Math.tan((Math.PI * 0.25) + (0.5 * DEG2RAD * lat))) * PROJECTION_WORLD_SIZE,
+            altitude || coords[2] || 0
         ];
 
-        const z = altitude || coords[2] || 0;
-        const pixelsPerMeter = this.projectedUnitsPerMeter(lat);
-        projected.push(z * pixelsPerMeter);
+        // const z = 
+        // const pixelsPerMeter = this.projectedUnitsPerMeter(lat);
+        // console.log(z * pixelsPerMeter)
+        // projected.push(z * pixelsPerMeter);
 
         return new THREE.Vector3(projected[0], projected[1], projected[2]);
     }
