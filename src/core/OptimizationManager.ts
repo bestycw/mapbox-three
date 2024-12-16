@@ -9,22 +9,18 @@ import { LODManager } from './LODManager';
  */
 export class OptimizationManager {
     private static instance: OptimizationManager;
-    private mapboxThree: MapboxThree;
-    private config: OptimizationConfig;
     private lodManager: LODManager;
 
-    private constructor(mapboxThree: MapboxThree, config?: OptimizationConfig) {
-        this.mapboxThree = mapboxThree;
-        this.config = config || {};
-        this.lodManager = new LODManager(this.mapboxThree, config?.lod);
+    private constructor(config?: OptimizationConfig) {
+        this.lodManager = new LODManager( config?.lod);
     }
 
     /**
      * 获取OptimizationManager实例
      */
-    public static getInstance(mapboxThree: MapboxThree, config?: OptimizationConfig): OptimizationManager {
+    public static getInstance( config?: OptimizationConfig): OptimizationManager {
         if (!OptimizationManager.instance) {
-            OptimizationManager.instance = new OptimizationManager(mapboxThree, config);
+            OptimizationManager.instance = new OptimizationManager( config);
         }
         return OptimizationManager.instance;
     }

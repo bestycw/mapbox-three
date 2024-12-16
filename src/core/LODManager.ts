@@ -21,10 +21,10 @@ export class LODManager {
     private config: Required<LODConfig>;
     private beforeLODHook?: (object: ExtendedObject3D, distance: number) => void;
     private afterLODHook?: (object: ExtendedObject3D, distance: number) => void;
-    private mapboxThree: MapboxThree;
+    // private mapboxThree: MapboxThree;
     
-    constructor(mapboxThree: MapboxThree, config?: LODConfig) {
-        this.mapboxThree = mapboxThree;
+    constructor(config?: LODConfig) {
+        // this.mapboxThree = mapboxThree;
         this.config = {
             enabled: config?.enabled ?? true,
             levels: config?.levels ?? [
