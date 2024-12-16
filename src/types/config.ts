@@ -104,6 +104,13 @@ export interface OptimizationConfig {
             detail: number;
         }>;
     };
+    objectPool?: {
+        enabled?: boolean;
+        maxSize?: number;
+        preloadCount?: number;
+        autoExpand?: boolean;
+        cleanupInterval?: number;
+    };
 }
 
 /**

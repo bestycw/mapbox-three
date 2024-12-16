@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ExtendedObject3D } from '../types';
 import { OptimizationConfig } from '../types/config';
 import { LODManager } from '../optimization/LODManager';
+import { ObjectPoolManager } from '../optimization/ObjectPoolManager';
 
 /**
  * OptimizationManager - 管理Three.js场景的性能优化
@@ -10,9 +11,11 @@ import { LODManager } from '../optimization/LODManager';
 export class OptimizationManager {
     private static instance: OptimizationManager;
     private lodManager: LODManager;
+    private objectPoolManager: ObjectPoolManager;
 
     private constructor(config?: OptimizationConfig) {
         this.lodManager = new LODManager( config?.lod);
+        this.objectPoolManager = new ObjectPoolManager(config?.objectPool);
     }
 
     /**
@@ -51,5 +54,45 @@ export class OptimizationManager {
      */
     public getLODManager(): LODManager {
         return this.lodManager;
+    }
+
+    /**
+     * 从对象池获取对象
+     */
+    public acquireFromPool<T extends ExtendedObject3D>(
+        type: string,
+        factory: () => T,
+        reset?: (obj: T) => void
+    ): T {
+        return this.objectPoolManager.acquire(type, factory, reset);
+    }
+
+    /**
+     * 释放对象到对象池
+     */
+    public releaseToPool(type: string, object: ExtendedObject3D): void {
+        this.objectPoolManager.release(type, object);
+    }
+
+    /**
+     * 获取对象池管理器
+     */
+    public getObjectPoolManager(): ObjectPoolManager {
+        return this.objectPoolManager;
+    }
+
+    /**
+     * 清理优化管理器
+     */
+    public cleanup(): void {
+        this.objectPoolManager.cleanup();
+    }
+
+    /**
+     * 释放资源
+     */
+    public dispose(): void {
+        this.lodManager.dispose();
+        this.objectPoolManager.dispose();
     }
 } 

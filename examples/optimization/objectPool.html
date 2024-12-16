@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapboxThree - Object Pool Example</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body { margin: 0; }
+        #map { width: 100vw; height: 100vh; }
+        #info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+        }
+        #controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        button {
+            padding: 8px;
+            cursor: pointer;
+        }
+        .active {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="info">
+        <h3>Object Pool Demo</h3>
+        <p>Particles Active: <span id="activeCount">0</span></p>
+        <p>Pool Available: <span id="availableCount">0</span></p>
+        <p>Memory Usage: <span id="memoryUsage">0</span> MB</p>
+        <p>FPS: <span id="fps">0</span></p>
+    </div>
+    <div id="controls">
+        <button id="toggleSpawn">Start Spawning</button>
+        <button id="spawnBurst">Spawn Burst</button>
+        <button id="clearAll">Clear All</button>
+        <div>
+            Spawn Rate: <input type="range" id="spawnRate" min="1" max="100" value="10">
+            <span id="spawnRateValue">10</span>/s
+        </div>
+    </div>
+
+    <script type="module">
+        import { MapboxThree } from '../../src/core/MapboxThree.ts';
+        import * as THREE from 'three';
+        import {config as defaultConfig} from '../config.js';
+
+        let mapboxThree;
+        let isSpawning = false;
+        let lastSpawnTime = 0;
+        let lastTime = performance.now();
+        let frameCount = 0;
+        const particles = new Set();
+
+        const config = {
+            mapbox: {
+                container: 'map',
+                style: 'mapbox://styles/mapbox/dark-v11',
+                accessToken: defaultConfig.accessToken,
+                center: [-74.5, 40],
+                zoom: 15,
+                pitch: 45,
+                bearing: 0
+            },
+            three: {
+                renderer: {
+                    antialias: true,
+                    alpha: true
+                },
+                lights: {
+                    ambient: {
+                        enabled: true,
+                        color: '#ffffff',
+                        intensity: 0.5
+                    },
+                    directional: {
+                        enabled: true,
+                        color: '#ffffff',
+                        intensity: 1.0
+                    }
+                }
+            },
+            optimization: {
+                objectPool: {
+                    enabled: true,
+                    maxSize: 1000,
+                    preloadCount: 50,
+                    autoExpand: true,
+                    cleanupInterval: 5000
+                }
+            }
+        };
+
+        async function init() {
+            mapboxThree = new MapboxThree(config);
+            await mapboxThree.init();
+            setupEventListeners();
+            animate();
+        }
+
+        function createParticle() {
+            return mapboxThree.getOptimizationManager().acquireFromPool(
+                'particle',
+                () => {
+                    const geometry = new THREE.SphereGeometry(10, 8, 8);
+                    const material = new THREE.MeshPhongMaterial({
+                        color: new THREE.Color().setHSL(Math.random(), 1, 0.5),
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    return new THREE.Mesh(geometry, material);
+                },
+                (particle) => {
+                    // 重置粒子状态
+                    particle.visible = true;
+                    particle.scale.set(1, 1, 1);
+                    particle.material.opacity = 0.8;
+                    
+                    // 随机位置
+                    const lat = 40 + (Math.random() - 0.5) * 0.1;
+                    const lng = -74.5 + (Math.random() - 0.5) * 0.1;
+                    const height = 100 + Math.random() * 500;
+
+                    // 设置随机速度和生命周期
+                    particle.userData.velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 2,
+                        Math.random() * 2,
+                        (Math.random() - 0.5) * 2
+                    );
+                    particle.userData.lifetime = 3 + Math.random() * 2;
+                    particle.userData.age = 0;
+
+                    mapboxThree.add(particle, {}, {
+                        coordinates: [lng, lat, height]
+                    });
+                }
+            );
+        }
+
+        function spawnParticle() {
+            const particle = createParticle();
+            particles.add(particle);
+            updateStats();
+        }
+
+        function spawnBurst() {
+            const burstCount = 50;
+            for (let i = 0; i < burstCount; i++) {
+                spawnParticle();
+            }
+        }
+
+        function updateParticles(deltaTime) {
+            particles.forEach(particle => {
+                particle.userData.age += deltaTime;
+
+                if (particle.userData.age >= particle.userData.lifetime) {
+                    // 回收粒子
+                    particles.delete(particle);
+                    mapboxThree.remove(particle);
+                    mapboxThree.getOptimizationManager().releaseToPool('particle', particle);
+                } else {
+                    // 更新粒子位置
+                    // const coords = particle.getCoords();
+                    const velocity = particle.userData.velocity;
+                    const progress = particle.userData.age / particle.userData.lifetime;
+                    
+                    // 应用速度和衰减
+                    particle.position.add(velocity.clone().multiplyScalar(deltaTime * 50));
+                    particle.material.opacity = 0.8 * (1 - progress);
+                    particle.scale.setScalar(1 - progress * 0.5);
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            // 更新FPS
+            frameCount++;
+            if (currentTime - lastSpawnTime >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                lastSpawnTime = currentTime;
+            }
+
+            // 根据设定的速率生成粒子
+            if (isSpawning) {
+                const spawnRate = parseInt(document.getElementById('spawnRate').value);
+                const spawnInterval = 1 / spawnRate;
+                if (currentTime - lastSpawnTime >= spawnInterval * 1000) {
+                    spawnParticle();
+                    lastSpawnTime = currentTime;
+                }
+            }
+
+            // 更新所有粒子
+            updateParticles(deltaTime);
+
+            // 更新统计信息
+            updateStats();
+
+            // 清理未使用的对象
+            mapboxThree.getOptimizationManager().cleanup();
+        }
+
+        function updateStats() {
+            const stats = mapboxThree.getOptimizationManager().getObjectPoolManager().getStats();
+            document.getElementById('activeCount').textContent = particles.size;
+            document.getElementById('availableCount').textContent = stats.particle?.available || 0;
+            
+            // 估算内存使用
+            const memoryUsage = (particles.size * (8 * 8 * 8 * 3 + 4 * 4)) / (1024 * 1024);
+            document.getElementById('memoryUsage').textContent = memoryUsage.toFixed(2);
+        }
+
+        function setupEventListeners() {
+            document.getElementById('toggleSpawn').addEventListener('click', (e) => {
+                isSpawning = !isSpawning;
+                e.target.textContent = isSpawning ? 'Stop Spawning' : 'Start Spawning';
+                e.target.classList.toggle('active', isSpawning);
+            });
+
+            document.getElementById('spawnBurst').addEventListener('click', spawnBurst);
+
+            document.getElementById('clearAll').addEventListener('click', () => {
+                particles.forEach(particle => {
+                    mapboxThree.remove(particle);
+                    mapboxThree.getOptimizationManager().releaseToPool('particle', particle);
+                });
+                particles.clear();
+                updateStats();
+            });
+
+            document.getElementById('spawnRate').addEventListener('input', (e) => {
+                document.getElementById('spawnRateValue').textContent = e.target.value;
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html> 
