@@ -74,11 +74,10 @@ export class CameraSync {
  
         const position = mapboxCamera.position;
         const t = this.map.transform as any;
-        // console.log(t.scale,this.map.getScaleFactor())
         const cameraCenter = this.map.getCenter();
         const cameraCenterWorld = GeoUtils.projectToWorld([cameraCenter.lng, cameraCenter.lat, position?.toAltitude() || 0]);
         const virtualCamera= this.camera.clone()
-        virtualCamera.position.set(cameraCenterWorld.x, cameraCenterWorld.y, position?.toAltitude() || 0)
+        virtualCamera.position.set(cameraCenterWorld.x, cameraCenterWorld.y, cameraCenterWorld.z || 0)
         this.mapboxThree.virtualCamera = virtualCamera
         
         const furthestDistance = Math.cos(Math.PI / 2 - t._pitch) * this.state.topHalfSurfaceDistance! + this.state.cameraToCenterDistance!;

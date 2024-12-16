@@ -99,9 +99,9 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
             enabled: true,
             levels: [
                 { distance: 0, detail: 1 },
-                { distance: 1500, detail: 0.8 },
-                { distance: 3000, detail: 0.5 },
-                { distance: 5000, detail: 0.1}
+                { distance: 1000, detail: 0.5 },
+                { distance: 2000, detail: 0.1 },
+                // { distance: 5000, detail: 0.1}
             ]
         },
 

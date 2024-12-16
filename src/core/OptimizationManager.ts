@@ -39,8 +39,8 @@ export class OptimizationManager {
     /**
      * 更新LOD对象
      */
-    public updateLOD(): void {
-        this.lodManager.update();
+    public updateLOD(camera:THREE.Camera): void {
+        this.lodManager.update(camera);
     }
 
     /**

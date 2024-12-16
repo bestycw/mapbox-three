@@ -168,7 +168,7 @@ export class MapboxThree {
 
             // 更新LOD（使用更新后的相机位置）
             if (this.optimizationManager) {
-                this.optimizationManager.updateLOD();
+                this.optimizationManager.updateLOD(this.virtualCamera);
             }
 
             if (this.map.repaint) {

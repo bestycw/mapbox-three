@@ -48,11 +48,12 @@ export class LODManager {
         if (!levels || levels.length === 0) return object;
 
         const lod = new THREE.LOD();
+        lod.autoUpdate = false;
         lod.position.copy(object.position);
         lod.rotation.copy(object.rotation);
         lod.scale.copy(object.scale);
         lod.userData = { ...object.userData };
-
+        object.visible = true;
         levels.forEach(({ distance, detail }) => {
             const levelObject = this.createLODLevel(object, detail);
             if (levelObject) {
@@ -79,6 +80,7 @@ export class LODManager {
         const material = originalObject.material;
 
         const levelObject = new THREE.Mesh(simplifiedGeometry, material);
+        levelObject.visible = false;
         levelObject.castShadow = originalObject.castShadow;
         levelObject.receiveShadow = originalObject.receiveShadow;
 
@@ -142,26 +144,60 @@ export class LODManager {
     /**
      * 更新LOD对象
      */
-    public update(): void {
+    public update(camera:THREE.Camera): void {
         if (!this.config.enabled) return;
-        // console.log(camera.position)
-        const camera = this.mapboxThree.virtualCamera
-        
         this.lodObjects.forEach((lod) => {
-            const distance =camera.position.distanceTo(lod.position);
-            console.log(distance)
+            const distance = camera.position.distanceTo(lod.position);
             if (this.beforeLODHook) {
                 this.beforeLODHook(lod, distance);
             }
-
-            lod.update(camera);
-
+            this._updateOnDistance(lod,distance);
+            // console.log(lod)
             if (this.afterLODHook) {
                 this.afterLODHook(lod, distance);
             }
         });
     }
+    _updateOnDistance( lod: THREE.LOD, distance:number ):void {
+        const levels = lod.levels;
+        // console.log(levels)
+        if (levels.length > 1) {
 
+            
+            // 确保第一个层级可见作为默认值
+            levels[0].object.visible = true;
+
+            let i, l;
+            for (i = 1, l = levels.length; i < l; i++) {
+                // 初始化滞后阈值
+                if (levels[i].hysteresis === undefined) {
+                    levels[i].hysteresis = 0;
+                }
+
+                let levelDistance = levels[i].distance;
+
+                if (levels[i].object.visible) {
+                    levelDistance -= levelDistance * levels[i].hysteresis;
+                }
+                // console.log(distance,distance-levelDistance)
+                if (distance >= levelDistance) {
+                    // console.log(i)
+                    levels[i - 1].object.visible = false;
+                    levels[i].object.visible = true;
+                } else {
+                    break;
+                }
+            }
+     
+            // 记录当前层级
+            (lod as any)._currentLevel = i - 1;
+            // console.log(i,l)
+            // 隐藏剩余的层级
+            for (; i < l; i++) {
+                levels[i].object.visible = false;
+            }
+        }
+    }
     /**
      * 设置LOD钩子函数
      */
