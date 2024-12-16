@@ -38,7 +38,7 @@ export class LODManager {
     /**
      * 为对象设置LOD
      */
-    public setupLOD(object: ExtendedObject3D, customLevels?: Array<{ distance: number; detail: number }>) {
+    public setupLOD(object: ExtendedObject3D, customLevels?: Array<{ distance: number; detail: number | THREE.Mesh }>) {
         // 检查对象的userData中是否禁用了LOD
         if (!this.config.enabled || object.userData.disableLOD) return object;
 
@@ -70,17 +70,19 @@ export class LODManager {
     /**
      * 创建LOD级别对象
      */
-    private createLODLevel(originalObject: ExtendedObject3D, detail: number): ExtendedObject3D | null {
+    private createLODLevel(originalObject: ExtendedObject3D, detail: number | THREE.Mesh ): ExtendedObject3D | null {
         if (!(originalObject instanceof THREE.Mesh)) return null;
 
         const geometry = originalObject.geometry;
         if (!geometry) return null;
-
+        if(typeof detail !== 'number') {
+            return detail
+        } 
         const simplifiedGeometry = this.simplifyGeometry(geometry, detail);
         const material = originalObject.material;
 
         const levelObject = new THREE.Mesh(simplifiedGeometry, material);
-        levelObject.visible = false;
+        // levelObject.visible = false;
         levelObject.castShadow = originalObject.castShadow;
         levelObject.receiveShadow = originalObject.receiveShadow;
 

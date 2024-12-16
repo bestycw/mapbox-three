@@ -116,7 +116,7 @@ export interface CustomConfig {
         disableLOD?: boolean;
         lodLevels?: Array<{
             distance: number;
-            detail: number;
+            detail: number | THREE.Mesh;
         }>;
     }
   

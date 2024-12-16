@@ -109,9 +109,9 @@
             const lng = -74.5 + (Math.random() - 0.5) * 2;
             
             mapboxThree.add(sphere, {
-                coordinates: [lng, lat],
-                altitude: 1000
+              
             }, {
+                coordinates: [lng, lat,100],
                 lodLevels: [
                     { distance: 0, detail: 1 },
                     { distance: 1000, detail: 0.6 },

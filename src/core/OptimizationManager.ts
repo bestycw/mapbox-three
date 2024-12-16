@@ -32,7 +32,7 @@ export class OptimizationManager {
     /**
      * 为对象设置LOD
      */
-    public setupLOD(object: ExtendedObject3D, customLevels?: Array<{ distance: number; detail: number }>) {
+    public setupLOD(object: ExtendedObject3D, customLevels?: Array<{ distance: number; detail: number | THREE.Mesh }>) {
         return this.lodManager.setupLOD(object, customLevels);
     }
 
