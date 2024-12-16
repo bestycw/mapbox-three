@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { MapboxThree } from './MapboxThree';
+// import { MapboxThree } from './MapboxThree';
 import { ExtendedObject3D } from '../types';
 import { OptimizationConfig } from '../types/config';
-import { LODManager } from './LODManager';
+import { LODManager } from '../optimization/LODManager';
 
 /**
  * OptimizationManager - 管理Three.js场景的性能优化
