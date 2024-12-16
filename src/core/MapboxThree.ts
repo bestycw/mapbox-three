@@ -190,17 +190,16 @@ export class MapboxThree {
 
     // 公共API
     public add(object: ExtendedObject3D, userOptions?: UserData,config?:CustomConfig): ExtendedObject3D {
-   
-
+        const {lod,coordinates} = config || {};
         // 如果启用了LOD优化且没有在userOptions中禁用，则应用LOD
         if (this.optimizationManager && 
             this.config.optimization?.lod?.enabled && 
-            !config?.disableLOD) {
-            object = this.optimizationManager.setupLOD(object,config?.lodLevels) as ExtendedObject3D;
+            !lod?.disableLOD) {
+            object = this.optimizationManager.setupLOD(object,lod?.lodLevels) as ExtendedObject3D;
         }
         // console.log(object)
         formatObj(object, userOptions);
-
+        
         //如果是mesh，则添加到世界
         if (object instanceof THREE.Mesh || object instanceof THREE.Group || object instanceof THREE.LOD) {
             this.world.add(object);
@@ -214,6 +213,11 @@ export class MapboxThree {
             this.scene.add(object);
         }
         console.log(object)
+        if(coordinates && object.setCoords){
+            object.setCoords(coordinates)
+        }
+
+
         return object;
     }
 

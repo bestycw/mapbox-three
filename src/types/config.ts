@@ -110,11 +110,16 @@ export interface OptimizationConfig {
  * 单个对象的自定义配置
  */
 export interface CustomConfig {
-    disableLOD?: boolean;
-    lodLevels?: Array<{
-        distance: number;
-        detail: number;
-    }>;
+    coordinates?: [number,number,number] | [number,number];
+    // altitude?: number;
+    lod:{
+        disableLOD?: boolean;
+        lodLevels?: Array<{
+            distance: number;
+            detail: number;
+        }>;
+    }
+  
     // 后续可以添加其他优化配置
 }
 
