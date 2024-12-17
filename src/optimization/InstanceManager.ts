@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { ExtendedObject3D } from '../types';
-import { InstanceConfig } from '../types/optimization';
+import { ExtendedObject3D, InstancingConfig } from '../config';
+import { defaultConfig } from '../config/defaults';
 
 /**
  * 实例化管理器配置接口
@@ -50,21 +50,17 @@ export class InstanceManager {
         drawCalls: 0
     };
 
-    private constructor(config?: InstanceManagerConfig) {
+    private constructor(config: InstanceManagerConfig) {
         this.config = {
-            enabled: config?.enabled ?? true,
-            threshold: config?.threshold ?? 10,
-            maxInstanceCount: config?.maxInstanceCount ?? 1000,
-            batchSize: config?.batchSize ?? 100,
-            dynamicBatching: config?.dynamicBatching ?? true,
-            updateInterval: config?.updateInterval ?? 16 // ~60fps
-        };
+            ...defaultConfig.optimization!.instancing!,
+            ...config
+        } as Required<InstanceManagerConfig>;
     }
 
     /**
      * 获取InstanceManager实例
      */
-    public static getInstance(config?: InstanceManagerConfig): InstanceManager {
+    public static getInstance(config: InstanceManagerConfig): InstanceManager {
         if (!InstanceManager.instance) {
             InstanceManager.instance = new InstanceManager(config);
         }
@@ -77,7 +73,7 @@ export class InstanceManager {
     public addInstance(
         object: ExtendedObject3D,
         groupId: string,
-        instanceConfig?: InstanceConfig
+        instanceConfig?: InstancingConfig
     ): THREE.InstancedMesh | null {
         if (!this.config.enabled || !(object instanceof THREE.Mesh)) {
             return null;
@@ -179,7 +175,7 @@ export class InstanceManager {
     private createInstanceGroup(
         template: THREE.Mesh,
         groupId: string,
-        config?: InstanceConfig
+        config?: InstancingConfig
     ): InstanceGroup {
         const initialCount = Math.min(
             config?.initialCount || this.config.batchSize,
@@ -353,7 +349,7 @@ export class InstanceManager {
     /**
      * 更新实例组配置
      */
-    public updateGroupConfig(groupId: string, config: Partial<InstanceConfig>): void {
+    public updateGroupConfig(groupId: string, config: Partial<InstancingConfig>): void {
         const group = this.instanceGroups.get(groupId);
         if (!group) return;
 
@@ -368,8 +364,8 @@ export class InstanceManager {
         }
         
         // 如果需要更新最大实例数
-        if (config.maxCount && config.maxCount > group.maxCount) {
-            this.expandInstanceGroup(group, config.maxCount);
+        if (config.maxInstanceCount && config.maxInstanceCount > group.maxCount) {
+            this.expandInstanceGroup(group, config.maxInstanceCount);
         }
     }
 
@@ -470,7 +466,7 @@ export class InstanceManager {
             group.mesh.count = 0;
         }
 
-        // 清除组数据
+        // 清除���数据
         group.objects.clear();
         group.count = 0;
         this.instanceGroups.delete(groupId);

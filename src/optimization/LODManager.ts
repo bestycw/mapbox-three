@@ -1,6 +1,7 @@
+import { defaultConfig, ExtendedObject3D, LodConfig } from '../config';
 import * as THREE from 'three';
-import { ExtendedObject3D } from '../types';
-import { LODConfig } from '../types/optimization';
+// import { ExtendedObject3D } from '../types';
+// import { LODConfig } from '../types/optimization';
 // import { MapboxThree } from 'main';
 
 /**
@@ -9,7 +10,7 @@ import { LODConfig } from '../types/optimization';
 export class LODManager {
     private lodObjects: Map<string, THREE.LOD> = new Map();
     private geometryCache: Map<string, THREE.BufferGeometry> = new Map();
-    private config:LODConfig;
+    private config:LodConfig;
     private beforeLODHook?: (object: ExtendedObject3D, distance: number) => void;
     private afterLODHook?: (object: ExtendedObject3D, distance: number) => void;
     private maxCacheSize: number = 100; // 最大缓存大小
@@ -23,14 +24,11 @@ export class LODManager {
     }> = new Map();
     // private mapboxThree: MapboxThree;
     
-    constructor(config?: LODConfig) {
+    constructor(config?: LodConfig) {
         this.config = {
-            enabled: config?.enabled ?? true,
-            dynamicAdjustment: config?.dynamicAdjustment ?? false,
-            transitionDuration: config?.transitionDuration ?? 0,
-            performanceTarget: config?.performanceTarget ?? 60,
-            levels: config?.levels ?? []
-        };
+            ...defaultConfig.optimization!.lod!,
+            ...config
+        } as Required<LodConfig>;
     }
 
     /**

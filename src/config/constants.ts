@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+
 
 // World
 const _WORLD_SIZE = 1024000;
@@ -37,69 +37,5 @@ export const EASING = {
     ElasticOut: (t: number): number => {
         const p = 0.3;
         return Math.pow(2, -10 * t) * Math.sin((t - p / 4) * (2 * Math.PI) / p) + 1;
-    }
-} as const;
-
-// Default material configurations
-export const DEFAULT_MATERIALS = {
-    basic: {
-        type: 'MeshBasicMaterial',
-        options: {
-            color: 0xffffff,
-            transparent: true,
-            opacity: 1,
-            side: THREE.DoubleSide
-        }
-    },
-    line: {
-        type: 'LineBasicMaterial',
-        options: {
-            color: 0x000000,
-            linewidth: 1,
-            transparent: true,
-            opacity: 1
-        }
-    },
-    standard: {
-        type: 'MeshStandardMaterial',
-        options: {
-            color: 0xffffff,
-            metalness: 0.5,
-            roughness: 0.5,
-            transparent: true,
-            opacity: 1,
-            side: THREE.DoubleSide
-        }
-    }
-} as const;
-
-// Default geometry configurations
-export const DEFAULT_GEOMETRIES = {
-    sphere: {
-        radius: 1,
-        segments: 32,
-        material: 'basic',
-        units: 'meters'
-    },
-    box: {
-        width: 1,
-        height: 1,
-        depth: 1,
-        material: 'basic',
-        units: 'meters'
-    },
-    line: {
-        width: 1,
-        material: 'line',
-        units: 'meters'
-    },
-    tube: {
-        radius: 1,
-        segments: 64,
-        radialSegments: 8,
-        closed: false,
-        material: 'basic',
-        units: 'meters',
-        path: [] as THREE.Vector3[]
     }
 } as const;

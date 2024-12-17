@@ -2,48 +2,48 @@ import * as THREE from 'three';
 import { LODManager } from '../optimization/LODManager';
 import { ObjectPoolManager } from '../optimization/ObjectPoolManager';
 import { InstanceManager } from '../optimization/InstanceManager';
-import { ExtendedObject3D } from '../types';
+
 import { 
     OptimizationConfig, 
-    LODLevel, 
-    InstanceConfig, 
-    InstanceMetrics
-} from '../types/optimization';
-import { MemoryManager, MemoryStats } from '../optimization/MemoryManager';
+    LodLevel, 
+    InstancingConfig,
+    ExtendedObject3D, 
+    MemoryStats
+} from '../config/types';
+import { MemoryManager } from '../optimization/MemoryManager';
 
 /**
  * 优化管理器 - 统一管理各种优化策略
  */
 export class OptimizationManager {
-    private static instance: OptimizationManager;
+    private static instance: OptimizationManager;   
     private lodManager!: LODManager;
     private objectPoolManager!: ObjectPoolManager;
     private instanceManager!: InstanceManager;
     private memoryManager!: MemoryManager;
 
-    private constructor(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>) {
-        this.initializeManagers(renderer, config);
-
+    private constructor(renderer: THREE.WebGLRenderer, config?: OptimizationConfig) {
+        this.initializeManagers(renderer, config || {});
     }
 
-    private initializeManagers(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>): void {
-        this.lodManager = new LODManager(config?.lod);
-        this.objectPoolManager = new ObjectPoolManager(config?.objectPool);
-        this.instanceManager = InstanceManager.getInstance(config?.instancing);
-        this.memoryManager = MemoryManager.getInstance(renderer, config?.memoryManager);
+    private initializeManagers(renderer: THREE.WebGLRenderer, config: OptimizationConfig): void {
+        this.lodManager = new LODManager(config.lod || {});
+        this.objectPoolManager = new ObjectPoolManager(config.objectPool || {});
+        this.instanceManager = InstanceManager.getInstance(config.instancing || {});
+        this.memoryManager = MemoryManager.getInstance(renderer, config.memoryManager || {});
         
-        // 设置内存警告回调
-        this.memoryManager.setWarningCallback((stats) => {
-            console.warn('Memory usage warning:', stats);
-        });
-        
-        // 设置内存临界回调
-        this.memoryManager.setCriticalCallback((stats) => {
-            console.error('Critical memory usage:', stats);
-        });
+        if (this.memoryManager) {
+            this.memoryManager.setWarningCallback((stats) => {
+                console.warn('Memory usage warning:', stats);
+            });
+            
+            this.memoryManager.setCriticalCallback((stats) => {
+                console.error('Critical memory usage:', stats);
+            });
+        }
     }
 
-    public static getInstance(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>): OptimizationManager {
+    public static getInstance(renderer: THREE.WebGLRenderer, config?: OptimizationConfig): OptimizationManager {
         if (!OptimizationManager.instance) {
             OptimizationManager.instance = new OptimizationManager(renderer, config);
         }
@@ -51,7 +51,7 @@ export class OptimizationManager {
     }
 
     // === LOD 管理 ===
-    public setupLOD(object: ExtendedObject3D, levels?: LODLevel[]): ExtendedObject3D {
+    public setupLOD(object: ExtendedObject3D, levels?: LodLevel[]): ExtendedObject3D {
         return this.lodManager.setupLOD(object, levels);
     }
 
@@ -67,7 +67,7 @@ export class OptimizationManager {
     public addInstance(
         object: ExtendedObject3D,
         groupId: string,
-        config?: InstanceConfig
+        config?: Partial<InstancingConfig>
     ): THREE.InstancedMesh | null {
         return this.instanceManager.addInstance(object, groupId, config);
     }
@@ -80,7 +80,7 @@ export class OptimizationManager {
         this.instanceManager.updateInstance(object, groupId);
     }
 
-    public getInstanceMetrics(): InstanceMetrics {
+    public getInstanceMetrics() {
         return this.instanceManager.getMetrics();
     }
 
@@ -88,7 +88,7 @@ export class OptimizationManager {
         this.instanceManager.clearInstances(groupId);
     }
 
-    public updateInstanceConfig(groupId: string, config: Partial<InstanceConfig>): void {
+    public updateInstanceConfig(groupId: string, config: Partial<InstancingConfig>): void {
         this.instanceManager.updateGroupConfig(groupId, config);
     }
 
@@ -116,10 +116,11 @@ export class OptimizationManager {
     public releaseObjectToPool(type: string, object: ExtendedObject3D): void {
         this.objectPoolManager.release(type, object);
     }
-    //清理长时间未用的对象
+
     public clearUpPoolObjects(): void {
         this.objectPoolManager.clearUp();
     }
+
     // === 便捷访问方法 ===
     public getLODManager(): LODManager {
         return this.lodManager;
@@ -137,6 +138,9 @@ export class OptimizationManager {
         this.lodManager.dispose();
         this.instanceManager.dispose();
         this.objectPoolManager.dispose();
+        if (this.memoryManager) {
+            this.memoryManager.dispose();
+        }
     }
 
     /**
@@ -146,7 +150,9 @@ export class OptimizationManager {
         return this.memoryManager.getMemoryStats();
     }
     
-    public memoryCleanup():void {
-        this.memoryManager.cleanup();
+    public memoryCleanup(): void {
+        if (this.memoryManager) {
+            this.memoryManager.cleanup();
+        }
     }
 } 

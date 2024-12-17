@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ExtendedObject3D } from '../types';
+import { defaultConfig, ExtendedObject3D } from '../config';
 
 /**
  * 对象池配置接口
@@ -56,16 +56,9 @@ export class ObjectPoolManager {
     
     constructor(config?: ObjectPoolConfig) {
         this.config = {
-            enabled: config?.enabled ?? true,
-            maxSize: config?.maxSize ?? 1000,
-            preloadCount: config?.preloadCount ?? 10,
-            autoExpand: config?.autoExpand ?? true,
-            cleanupInterval: config?.cleanupInterval ?? 60000,
-            predictiveScaling: config?.predictiveScaling ?? false,
-            minIdleTime: config?.minIdleTime ?? 30000,
-            maxIdleTime: config?.maxIdleTime ?? 300000,
-            warmupCount: config?.warmupCount ?? 0
-        };
+            ...defaultConfig.optimization!.objectPool!,
+            ...config
+        } as Required<ObjectPoolConfig>;
     }
 
     /**

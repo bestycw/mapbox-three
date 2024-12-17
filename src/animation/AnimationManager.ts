@@ -1,4 +1,4 @@
-import { ExtendedObject3D, AnimationState, AnimationOptions, EasingType } from '../types';
+import { ExtendedObject3D, AnimationState, AnimationOptions, EasingType } from '../config';
 import { EASING } from '../config/constants';
 
 export class AnimationManager {

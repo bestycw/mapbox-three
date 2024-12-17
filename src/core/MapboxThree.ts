@@ -1,19 +1,24 @@
 import * as THREE from 'three';
 import mapboxgl from 'mapbox-gl';
-// import { ObjectFactory } from '../objects/ObjectFactory';
 import { Logger } from '../utils/Logger';
 import { ErrorHandler } from '../utils/ErrorHandler';
-import { CameraConfig, LightsConfig, MapboxThreeConfig, RendererConfig, SceneConfig, CustomConfig } from '../types/config';
-import { DEFAULT_CONFIG } from '../config/DefaultConfig';
+// import { defaultConfig } from '../config/DefaultConfig';
 import { deepMerge } from '../utils/deepMerge';
-import {
-    ExtendedObject3D,
-    OptimizationConfig,
-    UserData
-} from '../types';
 import { CameraSync } from './CameraSync';
 import { formatObj } from '../utils/ObjEnhancer';
 import { OptimizationManager } from './OptimizationManager';
+import { 
+    MapboxThreeConfig, 
+    ThreeSceneConfig, 
+    ThreeRendererConfig, 
+    ThreeCameraConfig, 
+    ThreeLightsConfig,
+    CustomConfig, 
+    OptimizationConfig,
+    ExtendedObject3D,
+    UserData
+} from '../config/types';
+import { defaultConfig } from '../config';
 
 /**
  * MapboxThree - 整合 Three.js 和 Mapbox GL JS 的主类
@@ -35,7 +40,7 @@ export class MapboxThree {
     private readonly errorHandler: ErrorHandler;
     private readonly layerId: string = 'mapbox-three-layer';
 
-    constructor(options: Partial<MapboxThreeConfig>) {
+    constructor(options: MapboxThreeConfig) {
         this.logger = Logger.getInstance();
         this.errorHandler = ErrorHandler.getInstance();
         this.config = this.initializeConfig(options);
@@ -55,8 +60,8 @@ export class MapboxThree {
             }
         });
     }
-    private initializeConfig(options: Partial<MapboxThreeConfig>): MapboxThreeConfig {
-        const config = deepMerge(DEFAULT_CONFIG, options);
+    private initializeConfig(options: MapboxThreeConfig): MapboxThreeConfig {
+        const config = deepMerge(defaultConfig, options);
         if (!config.mapbox.accessToken) {
             throw new Error('Mapbox access token is required');
         }
@@ -95,11 +100,11 @@ export class MapboxThree {
         this.setupManager(optimization);
     }
 
-    private setupManager(config?: Partial<OptimizationConfig>): void {
+    private setupManager(config?: OptimizationConfig): void {
         this.optimizationManager = OptimizationManager.getInstance(this.renderer, config);
     }
 
-    private setupScene(config?: SceneConfig): void {
+    private setupScene(config?: ThreeSceneConfig): void {
         this.scene = new THREE.Scene();
         this.world = new THREE.Group();
         this.scene.add(this.world);
@@ -109,7 +114,7 @@ export class MapboxThree {
         }
 
     }
-    private setupRenderer(gl: WebGLRenderingContext, config?: RendererConfig): void {
+    private setupRenderer(gl: WebGLRenderingContext, config?: ThreeRendererConfig): void {
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.map.getCanvas(),
             context: gl,
@@ -119,7 +124,7 @@ export class MapboxThree {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     }
-    private setupCamera(config?: CameraConfig): void {
+    private setupCamera(config?: ThreeCameraConfig): void {
         if (!config) throw new Error('Camera is not defined');
         this.camera = new THREE.PerspectiveCamera(
             config.fov || 45,
@@ -139,7 +144,7 @@ export class MapboxThree {
             this.cameraSync.enable();
         }
     }
-    private setupLights(config?: LightsConfig): void {
+    private setupLights(config?: ThreeLightsConfig): void {
         if (!config) return;
 
         // const { lights } = config;   

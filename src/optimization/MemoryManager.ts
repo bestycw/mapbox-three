@@ -1,40 +1,7 @@
+import { MemoryManagerConfig, ResourceUsage, MemoryStats, defaultConfig } from '../config';
 import * as THREE from 'three';
 
-/**
- * 内存统计信息接口
- */
-export interface MemoryStats {
-    geometries: number;      // 几何体数量
-    textures: number;        // 纹理数量
-    materials: number;       // 材质数量
-    programs: number;        // shader程序数量
-    totalMemory: number;     // 总内存占用(bytes)
-    cachedResources: number; // 缓存资源数量
-    lastCleanupTime: number; // 上次清理时间
-}
 
-/**
- * 内存管理器配置接口
- */
-export interface MemoryManagerConfig {
-    enabled?: boolean;
-    maxCacheSize?: number;           // 最大缓存大小(MB)
-    cleanupInterval?: number;        // 清理间隔(ms)
-    disposalStrategy?: 'lru' | 'lfu'; // 资源释放策略
-    autoCleanup?: boolean;           // 是否自动清理
-    warningThreshold?: number;       // 内存警告阈值(MB)
-    criticalThreshold?: number;      // 内存临界阈值(MB)
-}
-
-/**
- * 资源使用记录
- */
-interface ResourceUsage {
-    lastUsed: number;    // 最后使用时间
-    useCount: number;    // 使用次数
-    size: number;        // 估算大小(bytes)
-    type: 'geometry' | 'texture' | 'material' | 'program';
-}
 
 /**
  * 内存管理器 - 管理Three.js资源的内存使用
@@ -61,14 +28,9 @@ export class MemoryManager {
     private constructor(renderer: THREE.WebGLRenderer, config?: MemoryManagerConfig) {
         this.renderer = renderer;
         this.config = {
-            enabled: config?.enabled ?? true,
-            maxCacheSize: config?.maxCacheSize ?? 512,  // 512MB
-            cleanupInterval: config?.cleanupInterval ?? 30000, // 30s
-            disposalStrategy: config?.disposalStrategy ?? 'lru',
-            autoCleanup: config?.autoCleanup ?? true,
-            warningThreshold: config?.warningThreshold ?? 384, // 384MB
-            criticalThreshold: config?.criticalThreshold ?? 480 // 480MB
-        };
+            ...defaultConfig.optimization!.memoryManager!,
+            ...config
+        } as Required<MemoryManagerConfig>;
     }
 
     /**
