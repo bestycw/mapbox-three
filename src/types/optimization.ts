@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ExtendedObject3D } from './index';
 
 /**
  * Available optimization strategies
@@ -23,6 +24,9 @@ export interface OptimizationMetrics {
     lastUpdate: number;     // Timestamp of last metrics update
     instanceCount?: number; // Number of instanced objects
     drawCalls?: number;    // Number of draw calls
+    lod: LODMetrics;
+    instance: InstanceMetrics;
+    pool: PoolMetrics;
 }
 
 /**
@@ -46,7 +50,7 @@ export interface OptimizationConfig {
     // LOD configuration
     lodLevels: Record<string, {
         distance: number;
-        detail: number;
+        detail: number | THREE.Mesh;
     }>;
     
     // Culling configuration
@@ -87,6 +91,25 @@ export interface OptimizationConfig {
     maxLights: number;
     beforeOptimize: ((scene: THREE.Scene) => void) | null;
     afterOptimize: ((scene: THREE.Scene) => void) | null;
+    lod?: {
+        enabled?: boolean;
+        thresholds?: number[];
+        updateInterval?: number;
+    };
+    instancing?: {
+        enabled?: boolean;
+        threshold?: number;
+        maxInstanceCount?: number;
+        batchSize?: number;
+        dynamicBatching?: boolean;
+        updateInterval?: number;
+    };
+    objectPool?: {
+        enabled?: boolean;
+        defaultPoolSize?: number;
+        maxPoolSize?: number;
+        cleanupInterval?: number;
+    };
 }
 
 /**
@@ -130,6 +153,7 @@ export interface InstanceConfig {
     frustumCulled?: boolean;    // 是否启用视锥体剔除
     castShadow?: boolean;       // 是否投射阴影
     receiveShadow?: boolean;    // 是否接收阴影
+    coordinates?: [number, number];
 }
 
 /**
@@ -151,4 +175,54 @@ export interface InstanceGroupInfo {
     maxInstances: number;     // 最大实例数量
     memoryUsage: number;      // 内存使用
     dirty: boolean;          // 是否需要更新
+}
+
+/**
+ * 对象池配置
+ */
+export interface PoolConfig {
+    initialSize?: number;
+    maxSize?: number;
+    growthFactor?: number;
+    autoShrink?: boolean;
+    shrinkDelay?: number;
+}
+
+/**
+ * 对象池性能指标
+ */
+export interface PoolMetrics {
+    activeObjects: number;
+    availableObjects: number;
+    totalCreated: number;
+    totalReused: number;
+    memoryUsage: number;
+}
+
+/**
+ * LOD 相关类型
+ */
+export interface LODLevel {
+    distance: number;
+    detail: number | THREE.Mesh;
+}
+
+/**
+ * LOD 信息
+ */
+export interface LODInfo {
+    currentLevel: number;
+    totalLevels: number;
+    distances: number[];
+    active: boolean;
+    memoryUsage: number;
+}
+
+/**
+ * LOD 性能指标
+ */
+export interface LODMetrics {
+    activeObjects: number;
+    switchCount: number;
+    memoryUsage: number;
 } 

@@ -144,7 +144,7 @@
     </div>
 
     <script type="module">
-        import { MapboxThree } from '../../src/core/MapboxThree.ts';
+        import { MapboxThree, GeoUtils } from '../../src/core';
         import * as THREE from 'three';
         import { config as defaultConfig } from '../config.js';
 
@@ -183,26 +183,38 @@
         async function init() {
             mapboxThree = new MapboxThree(config);
             await mapboxThree.init();
+            
+            // 初始化 GeoUtils
+            const center = mapboxThree.map.getCenter();
+            // GeoUtils.init([center.lng, center.lat]);
+            
             setupEventListeners();
+            // 默认创建一些实例
+            // createGrid(1000);
             animate();
         }
 
         // 创建基础几何体
         function createTemplate() {
-            const geometry = new THREE.BoxGeometry(10, 10, 10);
+            const geometry = new THREE.BoxGeometry(10, 10, 10);  // 减小基础大小
             const material = new THREE.MeshPhongMaterial({
                 color: new THREE.Color().setHSL(Math.random(), 0.8, 0.5),
                 transparent: true,
                 opacity: 0.8
             });
-            return new THREE.Mesh(geometry, material);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.userData.units = 'meters';  // 设置单位为米
+            return mesh;
         }
 
-        function createInstance(position, groupId = 'default') {
+        function createInstance(position, groupId = 'default', lngLat) {
             const template = createTemplate();
             template.position.copy(position);
             
-            const instancedMesh = mapboxThree.getOptimizationManager().addInstance(
+            // 使用 OptimizationManager 添加实例
+            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
+            // console.log(instanceManager);
+            const instancedMesh = instanceManager.addInstance(
                 template,
                 groupId,
                 {
@@ -210,81 +222,116 @@
                     dynamicBatching: true,
                     frustumCulled: true,
                     castShadow: true,
-                    receiveShadow: true
+                    receiveShadow: true,
+                    coordinates: lngLat
                 }
             );
-            console.log(instancedMesh)
+            // console.log(lngLat);
             if (instancedMesh) {
                 instances.add(template);
-                mapboxThree.add(instancedMesh);
+                // 确保添加到场景时包含正确的单位和坐标信息
+                mapboxThree.add(instancedMesh,{}, { 
+                    coordinates: lngLat
+                });
             }   
 
             return template;
         }
 
-        function createGrid(size, spacing = 20) {
-            const halfSize = size / 2;
+        function createGrid(size, spacing = 0.0002) { // 增加间距
+            clearAll(); // 清除现有实例
             const count = Math.floor(Math.sqrt(size));
-            const offset = (count * spacing) / 2;
+            
+            // 获取地图中心点
+            const center = mapboxThree.map.getCenter();
+            const centerLng = center.lng;
+            const centerLat = center.lat;
 
             for (let i = 0; i < count; i++) {
                 for (let j = 0; j < count; j++) {
-                    const x = (i * spacing) - offset;
-                    const z = (j * spacing) - offset;
-                    const y = 0;
-
-                    const position = new THREE.Vector3(x, y, z);
-                    createInstance(position, 'grid');
+                    const lng = centerLng + (i * spacing) - (count * spacing / 2);
+                    const lat = centerLat + (j * spacing) - (count * spacing / 2);
+                    
+                    const lngLat = [lng, lat];
+                    const position = GeoUtils.projectToWorld(lngLat);
+                    position.y = 20; // 降低高度到20米
+                    
+                    createInstance(position, 'grid', lngLat);
                 }
             }
         }
 
-        function createSpiral(count, radius = 100, height = 100) {
+        function createSpiral(count, radius = 0.001, height = 100) { // radius约等于100米
             const angleStep = (Math.PI * 2) / count * 10;
             const radiusStep = radius / count;
             const heightStep = height / count;
+            
+            // 获取地图中心点
+            const center = mapboxThree.map.getCenter();
+            const centerLng = center.lng;
+            const centerLat = center.lat;
 
             for (let i = 0; i < count; i++) {
                 const angle = angleStep * i;
                 const r = radiusStep * i;
-                const y = heightStep * i;
+                const y = heightStep * i + 50; // 从50米高度开始螺旋上升
 
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-
-                const position = new THREE.Vector3(x, y, z);
-                createInstance(position, 'spiral');
+                // 计算经纬度偏移
+                const lng = centerLng + (Math.cos(angle) * r);
+                const lat = centerLat + (Math.sin(angle) * r);
+                
+                const lngLat = [lng, lat];
+                // 转换为Three.js坐标
+                const position = GeoUtils.projectToWorld(lngLat);
+                position.y = y;
+                
+                createInstance(position, 'spiral', lngLat);
             }
         }
 
-        function createRandom(count, bounds = 500) {
+        function createRandom(count, bounds = 0.001) { // 修改随机生成函数以使用地理坐标
+            // 获取地图中心点
+            const center = mapboxThree.map.getCenter();
+            const centerLng = center.lng;
+            const centerLat = center.lat;
+
             for (let i = 0; i < count; i++) {
-                const position = new THREE.Vector3(
-                    (Math.random() - 0.5) * bounds,
-                    (Math.random() - 0.5) * bounds,
-                    (Math.random() - 0.5) * bounds
-                );
-                createInstance(position, 'random');
+                // 在地图中心周围随机生成经纬度
+                const lng = centerLng + (Math.random() - 0.5) * bounds;
+                const lat = centerLat + (Math.random() - 0.5) * bounds;
+                const lngLat = [lng, lat];
+
+                // 转换为Three.js坐标
+                const position = GeoUtils.projectToWorld(lngLat);
+                position.y = Math.random() * 100; // 随机高度
+
+                createInstance(position, 'random', lngLat);
             }
         }
 
         function updateInstances(deltaTime) {
             if (!isAnimating) return;
 
+            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
+            
             instances.forEach(instance => {
-                // 旋转和移动
+                // 获取实例所属的组
+                const groupId = instanceManager.getObjectGroupId(instance);
+                if (!groupId) return;
+
+                // 更新实例的变换
                 instance.rotation.x += deltaTime * 0.5;
                 instance.rotation.y += deltaTime * 0.3;
                 instance.position.y += Math.sin(performance.now() * 0.001) * 0.5;
 
-                // 更新实例
-                const groupId = instance.userData.groupId || 'default';
-                mapboxThree.getOptimizationManager().updateInstance(instance, groupId);
+                // 使用 instanceManager 更新实例
+                instanceManager.updateInstance(instance, groupId);
             });
         }
 
         function updateStats() {
-            const metrics = mapboxThree.getOptimizationManager().getInstanceManager().getMetrics();
+            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
+            const metrics = instanceManager.getMetrics();
             
             // 更新基本统计
             document.getElementById('instanceCount').textContent = metrics.instanceCount;
@@ -297,10 +344,10 @@
             document.getElementById('updateTime').textContent = 
                 metrics.updateTime.toFixed(2);
             document.getElementById('vertexCount').textContent = 
-                instances.size * 36; // 假设每个盒子有36个顶点
+                instances.size * 36;
 
             // 更新实例组信息
-            const groupInfo = mapboxThree.getOptimizationManager().getInstanceManager().getGroupInfo('default');
+            const groupInfo = instanceManager.getGroupInfo('default');
             if (groupInfo) {
                 document.getElementById('groupCount').textContent = metrics.batchCount;
                 document.getElementById('avgPerGroup').textContent = 
@@ -332,11 +379,28 @@
         }
 
         function clearAll() {
-            instances.forEach(instance => {
-                const groupId = instance.userData.groupId || 'default';
-                mapboxThree.getOptimizationManager().removeInstance(instance, groupId);
+            // 获取 instanceManager
+            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
+            
+            // 清除所有实例组
+            ['grid', 'spiral', 'random'].forEach(groupId => {
+                // 先获取组内的所有实例
+                const group = instanceManager.getInstanceGroup(groupId);
+                if (group) {
+                    // 从场景中移除实例化网格
+                    const instancedMesh = group.instancedMesh;
+                    if (instancedMesh) {
+                        mapboxThree.remove(instancedMesh);
+                    }
+                    // 清除组
+                    instanceManager.clearInstanceGroup(groupId);
+                }
             });
+            
+            // 清除实例集合
             instances.clear();
+            
+            // 强制更新统计信息
             updateStats();
         }
 
@@ -347,22 +411,30 @@
                 e.target.classList.toggle('active', isAnimating);
             });
 
-            document.getElementById('addInstances').addEventListener('click', () => {
-                const count = parseInt(document.getElementById('instanceSlider').value);
-                createRandom(count);
-            });
-
             document.getElementById('clearAll').addEventListener('click', clearAll);
 
             document.getElementById('instanceSlider').addEventListener('input', (e) => {
                 document.getElementById('instanceValue').textContent = e.target.value;
+                // 动态更新实例配置
+                const count = parseInt(e.target.value);
+                ['grid', 'spiral', 'random'].forEach(groupId => {
+                    mapboxThree.getOptimizationManager().updateInstanceConfig(groupId, {
+                        maxCount: count,
+                        batchSize: Math.min(1000, Math.ceil(count / 10))
+                    });
+                });
             });
 
+            // 场景测试按钮
             document.querySelectorAll('.scenario-button').forEach(button => {
                 button.addEventListener('click', (e) => {
-                    clearAll();
+                    const scenario = e.target.dataset.scenario;
                     const count = parseInt(document.getElementById('instanceSlider').value);
-                    switch (e.target.dataset.scenario) {
+                    
+                    // 先清除其他场景
+                    clearAll();
+                    
+                    switch(scenario) {
                         case 'grid':
                             createGrid(count);
                             break;
@@ -374,6 +446,32 @@
                             break;
                     }
                 });
+            });
+
+            document.getElementById('addInstances').addEventListener('click', () => {
+                // 获取当前滑块值作为要添加的实例数量
+                const count = parseInt(document.getElementById('instanceSlider').value);
+                // console.log(count);
+                // 获取地图中心点
+                const center = mapboxThree.map.getCenter();
+                const centerLng = center.lng;
+                const centerLat = center.lat;
+                
+                // 在当前视图范围内随机添加实例
+                const bounds = 0.001; // 约100米范围
+                for (let i = 0; i < count; i++) {
+                    // 随机位置
+                    const lng = centerLng + (Math.random() - 0.5) * bounds;
+                    const lat = centerLat + (Math.random() - 0.5) * bounds;
+                    const lngLat = [lng, lat];
+                    
+                    // 转换为Three.js坐标
+                    const position = GeoUtils.projectToWorld(lngLat);
+                    position.y = Math.random() * 100; // 随机高度 0-100米
+                    
+                    // 创建新实例
+                    createInstance(position, 'random', lngLat);
+                }
             });
         }
 

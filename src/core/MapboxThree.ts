@@ -3,11 +3,12 @@ import mapboxgl from 'mapbox-gl';
 // import { ObjectFactory } from '../objects/ObjectFactory';
 import { Logger } from '../utils/Logger';
 import { ErrorHandler } from '../utils/ErrorHandler';
-import { CameraConfig, LightsConfig, MapboxThreeConfig, OptimizationConfig, RendererConfig, SceneConfig, CustomConfig } from '../types/config';
+import { CameraConfig, LightsConfig, MapboxThreeConfig, RendererConfig, SceneConfig, CustomConfig } from '../types/config';
 import { DEFAULT_CONFIG } from '../config/DefaultConfig';
 import { deepMerge } from '../utils/deepMerge';
 import {
     ExtendedObject3D,
+    OptimizationConfig,
     UserData
 } from '../types';
 import { CameraSync } from './CameraSync';
@@ -94,7 +95,7 @@ export class MapboxThree {
         this.setupManager(optimization);
     }
 
-    private setupManager(config?: OptimizationConfig): void {
+    private setupManager(config?: Partial<OptimizationConfig>): void {
         this.optimizationManager = OptimizationManager.getInstance( config);
     }
 

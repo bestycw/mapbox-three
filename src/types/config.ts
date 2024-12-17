@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {  MapboxOptions } from 'mapbox-gl';
+import { OptimizationConfig } from './optimization';
 
 // Mapbox 配置
 export interface MapboxConfig extends MapboxOptions {
@@ -87,37 +88,6 @@ export interface ThreeConfig {
     autoRender?: boolean;
 }
 
-// 性能相关配置
-export interface OptimizationConfig {
-    fps?: number;
-    batching?: {
-        enabled?: boolean;
-        maxBatchSize?: number;
-    };
-    instancing?: {
-        enabled?: boolean;
-        threshold?: number;
-    };
-    lod?: {
-        enabled?: boolean;
-        levels?: Array<{
-            distance: number;
-            detail: number;
-        }>;
-    };
-    objectPool?: {
-        enabled?: boolean;
-        maxSize?: number;
-        preloadCount?: number;
-        autoExpand?: boolean;
-        predictiveScaling?: boolean;
-        cleanupInterval?: number;
-        minIdleTime?: number;
-        maxIdleTime?: number;
-        warmupCount?: number;
-    };
-}
-
 /**
  * 单个对象的自定义配置
  */
@@ -139,7 +109,7 @@ export interface CustomConfig {
 export interface MapboxThreeConfig {
     mapbox: MapboxConfig;
     three?: ThreeConfig;
-    optimization?: OptimizationConfig;
-    debug?: boolean;
+    optimization?: Partial<OptimizationConfig>;
+    custom?: CustomConfig;
 }
 

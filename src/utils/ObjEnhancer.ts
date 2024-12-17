@@ -6,12 +6,14 @@ import { Coordinates, ExtendedObject3D, UserData } from '../types';
  * 增强 Obj 对象，添加地理相关的方法
  */
 export function enhancedObj(obj: ExtendedObject3D): ExtendedObject3D {
+    console.log(obj)
     const enhanced = obj;
     // obj.userData.isUser = true;
     obj.userData.isUser = true;
     // 添加地理坐标方法
     enhanced.setCoords = function(coords: Coordinates): ExtendedObject3D {
-        // console.log(obj.userData.units)
+
+        if(!coords || !Array.isArray(coords) || coords.length <2)  throw new Error('Invalid coordinates');
         if (obj.userData.units === 'meters') {
             const s = GeoUtils.projectedUnitsPerMeter(coords[1]);
             // console.log(s)

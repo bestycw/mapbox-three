@@ -163,7 +163,7 @@
         const particles = new Set();
         let demandHistory = [];
         const CHART_POINTS = 30;
-
+        let optimizationManager;
         // 配置对象池
         const poolConfig = {
             enabled: true,
@@ -199,6 +199,7 @@
         async function init() {
             mapboxThree = new MapboxThree(config);
             await mapboxThree.init();
+            optimizationManager = mapboxThree.getOptimizationManager();
             setupEventListeners();
             setupDemandChart();
             animate();
@@ -206,7 +207,7 @@
 
         // 创建粒子
         function createParticle() {
-            return mapboxThree.getOptimizationManager().acquireFromPool(
+            return optimizationManager.getObjectFromPool(
                 'particle',
                 () => {
                     const geometry = new THREE.SphereGeometry(5, 8, 8);
@@ -265,7 +266,7 @@
                 if (particle.userData.age >= particle.userData.lifetime) {
                     particles.delete(particle);
                     mapboxThree.remove(particle);
-                    mapboxThree.getOptimizationManager().releaseToPool('particle', particle);
+                    optimizationManager.releaseObjectToPool('particle', particle);
                 } else {
                     const velocity = particle.userData.velocity;
                     const rotationSpeed = particle.userData.rotationSpeed;
@@ -288,7 +289,7 @@
         }
 
         function updateStats() {
-            const stats = mapboxThree.getOptimizationManager().getObjectPoolManager().getStats().particle;
+            const stats = optimizationManager.getObjectPoolManager().getStats().particle;
             if (!stats) return;
 
             // 更新基本统计
@@ -368,7 +369,7 @@
                     document.getElementById('spawnRateValue').textContent = 20;
                     setInterval(() => {
                         if (particles.size > 1000) {
-                            mapboxThree.getOptimizationManager().cleanup();
+                            optimizationManager.clearUpPoolObjects();
                         }
                     }, 1000);
                     break;
@@ -405,7 +406,7 @@
             updateStats();
 
             // 定期清理
-            mapboxThree.getOptimizationManager().cleanup();
+            optimizationManager.clearUpPoolObjects();
         }
 
         function setupEventListeners() {
@@ -420,7 +421,7 @@
             document.getElementById('clearAll').addEventListener('click', () => {
                 particles.forEach(particle => {
                     mapboxThree.remove(particle);
-                    mapboxThree.getOptimizationManager().releaseToPool('particle', particle);
+                    optimizationManager.releaseObjectToPool('particle', particle);
                 });
                 particles.clear();
                 updateStats();

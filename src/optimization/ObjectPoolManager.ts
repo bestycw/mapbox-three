@@ -330,7 +330,7 @@ export class ObjectPoolManager {
     /**
      * 清理长时间未使用的对象
      */
-    public cleanup(): void {
+    public clearUp(): void {
         const currentTime = Date.now();
         if (currentTime - this.lastCleanupTime < this.config.cleanupInterval) {
             return;

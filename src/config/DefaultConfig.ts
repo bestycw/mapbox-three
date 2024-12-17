@@ -116,7 +116,7 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
             predictiveScaling: false,
             minIdleTime: 30000,
             maxIdleTime: 300000,
-            warmupCount: 0
+            warmupCount: 0 
         },
 
         // // 渲染优化

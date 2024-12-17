@@ -151,7 +151,7 @@ export class InstanceManager {
     }
 
     /**
-     * 更新所有��例化组
+     * 更新所有实例化组
      */
     public update(): void {
         const currentTime = performance.now();
@@ -210,44 +210,7 @@ export class InstanceManager {
         };
     }
 
-    /**
-     * 扩展实例化组容量
-     */
-    private expandInstanceGroup(group: InstanceGroup): void {
-        const newMaxCount = Math.min(
-            group.maxCount * 2,
-            this.config.maxInstanceCount
-        );
 
-        if (newMaxCount === group.maxCount) {
-            return;
-        }
-
-        const newMesh = new THREE.InstancedMesh(
-            group.geometry,
-            group.material,
-            newMaxCount
-        );
-        newMesh.frustumCulled = group.mesh.frustumCulled;
-        newMesh.castShadow = group.mesh.castShadow;
-        newMesh.receiveShadow = group.mesh.receiveShadow;
-
-        // 复制现有实例
-        for (let i = 0; i < group.count; i++) {
-            newMesh.setMatrixAt(i, group.matrix[i]);
-        }
-        newMesh.instanceMatrix.needsUpdate = true;
-
-        // 扩展矩阵数组
-        const newMatrix = new Array(newMaxCount).fill(null).map((_, i) => 
-            i < group.matrix.length ? group.matrix[i] : new THREE.Matrix4()
-        );
-
-        // 更新组
-        group.mesh = newMesh;
-        group.maxCount = newMaxCount;
-        group.matrix = newMatrix;
-    }
 
     /**
      * 更新性能指标
@@ -281,7 +244,7 @@ export class InstanceManager {
     }
 
     /**
-     * 估算几何体内存大小
+     * 估几何体内存大小
      */
     private estimateGeometrySize(geometry: THREE.BufferGeometry): number {
         let size = 0;
@@ -331,5 +294,124 @@ export class InstanceManager {
             updateTime: 0,
             drawCalls: 0
         };
+    }
+
+    /**
+     * 清除指定组的所有实例
+     */
+    public clearInstances(groupId: string): void {
+        const group = this.instanceGroups.get(groupId);
+        if (!group) return;
+
+        // 清除所有实例对象
+        group.objects.clear();
+        group.count = 0;
+        group.dirty = true;
+
+        // 更新实例矩阵
+        for (let i = 0; i < group.maxCount; i++) {
+            group.mesh.setMatrixAt(i, new THREE.Matrix4());
+        }
+        group.mesh.instanceMatrix.needsUpdate = true;
+
+        // 更新性能指标
+        this.updateMetrics();
+    }
+
+    /**
+     * 清除所有实例组
+     */
+    public clearAll(): void {
+        this.instanceGroups.forEach((group, groupId) => {
+            this.clearInstances(groupId);
+        });
+    }
+
+    /**
+     * 更新实例组配置
+     */
+    public updateGroupConfig(groupId: string, config: Partial<InstanceConfig>): void {
+        const group = this.instanceGroups.get(groupId);
+        if (!group) return;
+
+        if (config.frustumCulled !== undefined) {
+            group.mesh.frustumCulled = config.frustumCulled;
+        }
+        if (config.castShadow !== undefined) {
+            group.mesh.castShadow = config.castShadow;
+        }
+        if (config.receiveShadow !== undefined) {
+            group.mesh.receiveShadow = config.receiveShadow;
+        }
+        
+        // 如果需要更新最大实例数
+        if (config.maxCount && config.maxCount > group.maxCount) {
+            this.expandInstanceGroup(group, config.maxCount);
+        }
+    }
+
+    /**
+     * 获取组内所有实例对象
+     */
+    public getGroupObjects(groupId: string): ExtendedObject3D[] {
+        const group = this.instanceGroups.get(groupId);
+        if (!group) return [];
+        return Array.from(group.objects.keys());
+    }
+
+    /**
+     * 检查对象是否在指定组中
+     */
+    public hasInstance(object: ExtendedObject3D, groupId: string): boolean {
+        const group = this.instanceGroups.get(groupId);
+        return group ? group.objects.has(object) : false;
+    }
+
+    /**
+     * 获取对象所在的组ID
+     */
+    public getObjectGroupId(object: ExtendedObject3D): string | null {
+        for (const [groupId, group] of this.instanceGroups.entries()) {
+            if (group.objects.has(object)) {
+                return groupId;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 扩展实例化组容量到指定大小
+     */
+    private expandInstanceGroup(group: InstanceGroup, targetCount?: number): void {
+        const newMaxCount = targetCount ? 
+            Math.min(targetCount, this.config.maxInstanceCount) :
+            Math.min(group.maxCount * 2, this.config.maxInstanceCount);
+
+        if (newMaxCount <= group.maxCount) return;
+
+        const newMesh = new THREE.InstancedMesh(
+            group.geometry,
+            group.material,
+            newMaxCount
+        );
+        newMesh.frustumCulled = group.mesh.frustumCulled;
+        newMesh.castShadow = group.mesh.castShadow;
+        newMesh.receiveShadow = group.mesh.receiveShadow;
+
+        // 复制现有实例
+        for (let i = 0; i < group.count; i++) {
+            newMesh.setMatrixAt(i, group.matrix[i]);
+        }
+        newMesh.instanceMatrix.needsUpdate = true;
+
+        // 扩展矩阵数组
+        const newMatrix = new Array(newMaxCount).fill(null).map((_, i) => 
+            i < group.matrix.length ? group.matrix[i] : new THREE.Matrix4()
+        );
+
+        // 更新组
+        group.mesh = newMesh;
+        group.maxCount = newMaxCount;
+        group.matrix = newMatrix;
     }
 } 
