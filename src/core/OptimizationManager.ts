@@ -9,6 +9,7 @@ import {
     InstanceConfig, 
     InstanceMetrics
 } from '../types/optimization';
+import { MemoryManager, MemoryStats } from '../optimization/MemoryManager';
 
 /**
  * 优化管理器 - 统一管理各种优化策略
@@ -18,20 +19,33 @@ export class OptimizationManager {
     private lodManager!: LODManager;
     private objectPoolManager!: ObjectPoolManager;
     private instanceManager!: InstanceManager;
+    private memoryManager!: MemoryManager;
 
-    private constructor(config?: Partial<OptimizationConfig>) {
-        this.initializeManagers(config);
+    private constructor(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>) {
+        this.initializeManagers(renderer, config);
+
     }
 
-    private initializeManagers(config?: Partial<OptimizationConfig>): void {
+    private initializeManagers(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>): void {
         this.lodManager = new LODManager(config?.lod);
         this.objectPoolManager = new ObjectPoolManager(config?.objectPool);
         this.instanceManager = InstanceManager.getInstance(config?.instancing);
+        this.memoryManager = MemoryManager.getInstance(renderer, config?.memoryManager);
+        
+        // 设置内存警告回调
+        this.memoryManager.setWarningCallback((stats) => {
+            console.warn('Memory usage warning:', stats);
+        });
+        
+        // 设置内存临界回调
+        this.memoryManager.setCriticalCallback((stats) => {
+            console.error('Critical memory usage:', stats);
+        });
     }
 
-    public static getInstance(config?: Partial<OptimizationConfig>): OptimizationManager {
+    public static getInstance(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>): OptimizationManager {
         if (!OptimizationManager.instance) {
-            OptimizationManager.instance = new OptimizationManager(config);
+            OptimizationManager.instance = new OptimizationManager(renderer, config);
         }
         return OptimizationManager.instance;
     }
@@ -123,5 +137,16 @@ export class OptimizationManager {
         this.lodManager.dispose();
         this.instanceManager.dispose();
         this.objectPoolManager.dispose();
+    }
+
+    /**
+     * 获取内存统计信息
+     */
+    public getMemoryStats(): MemoryStats {
+        return this.memoryManager.getMemoryStats();
+    }
+    
+    public memoryCleanup():void {
+        this.memoryManager.cleanup();
     }
 } 

@@ -96,7 +96,7 @@ export class MapboxThree {
     }
 
     private setupManager(config?: Partial<OptimizationConfig>): void {
-        this.optimizationManager = OptimizationManager.getInstance( config);
+        this.optimizationManager = OptimizationManager.getInstance(this.renderer, config);
     }
 
     private setupScene(config?: SceneConfig): void {

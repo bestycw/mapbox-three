@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ExtendedObject3D } from './index';
+import { MemoryManagerConfig } from '../optimization/MemoryManager';
 
 /**
  * Available optimization strategies
@@ -60,6 +61,7 @@ export interface OptimizationConfig {
         maxIdleTime?: number;
         warmupCount?: number;
     };
+    memoryManager?: MemoryManagerConfig;
 }
 
 /**
@@ -111,7 +113,7 @@ export interface InstanceConfig {
  */
 export interface InstanceMetrics {
     instanceCount: number;     // 实例数量
-    batchCount: number;       // 批次数量
+    batchCount: number;       // ���次数量
     memoryUsage: number;      // 内存使用
     updateTime: number;       // 更新时间
     drawCalls: number;        // 绘制调用次数

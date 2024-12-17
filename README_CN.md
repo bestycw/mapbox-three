@@ -91,7 +91,7 @@ mapboxThree.add(highMesh, {}, {
 ```
 
 ##### 对象池
-对象池系统通过重用对象来减少内存分配和��圾回收，提高性能和内存使用效率。
+对象池系统通过重用对象来减少内存分配和垃圾回收，提高性能和内存使用效率。
 
 **使用场景**：
 - 频繁创建和销毁的对象（如粒子系统）
@@ -139,7 +139,7 @@ const config = {
             predictiveScaling: true, // 启用预测性扩展
             minIdleTime: 30000,     // 最小空闲时间(ms)
             maxIdleTime: 300000,    // 最大空闲时间(ms)
-            warmupCount: 100        // 预热对象数量
+            warmupCount: 100        // 预热对象数���
         }
     }
 };
@@ -222,6 +222,104 @@ optimizationManager.cleanup();
    - 优化获取和释放策略
 
 这两个优化系统可以结合使用，在处理大规模动态3D场景时提供显著的性能提升。
+
+##### 内存管理
+内存管理系统通过智能缓存和资源生命周期管理来优化内存使用。
+
+**使用场景**：
+- 大规模3D场景的资源管理
+- 动态加载和卸载的场景
+- 内存敏感的应用
+- 需要预防内存泄漏的场景
+
+**核心功能**：
+1. 资源缓存管理
+- 几何体缓存
+- 纹理缓存
+- 材质缓存
+- Shader程序缓存
+
+2. 内存监控
+- 实时内存统计
+- 资源使用追踪
+- 阈值警告系统
+- 自动清理机制
+
+3. 资源生命周期
+- 使用频率分析
+- 空闲时间追踪
+- LRU/LFU清理策略
+- 智能预加载
+
+**配置示例**：
+```typescript
+const config = {
+    optimization: {
+        memoryManager: {
+            enabled: true,
+            maxCacheSize: 512,        // 最大缓存大小(MB)
+            cleanupInterval: 30000,   // 清理间隔(ms)
+            disposalStrategy: 'lru',  // 资源释放策略
+            autoCleanup: true,        // 自动清理
+            warningThreshold: 384,    // 警告阈值(MB)
+            criticalThreshold: 480    // 临界阈值(MB)
+        }
+    }
+};
+```
+
+**使用示例**：
+```typescript
+// 获取内存管理器
+const memoryManager = optimizationManager.getMemoryManager();
+
+// 缓存资源
+memoryManager.cacheGeometry('key', geometry);
+memoryManager.cacheTexture('key', texture);
+memoryManager.cacheMaterial('key', material);
+
+// 获取缓存的资源
+const cachedGeometry = memoryManager.getGeometry('key');
+
+// 监控内存使用
+const stats = memoryManager.getMemoryStats();
+console.log('Memory usage:', stats);
+/* 输出示例：
+{
+    geometries: 100,         // 几何体数量
+    textures: 50,           // 纹理数量
+    materials: 30,          // 材质数量
+    programs: 10,           // shader程序数量
+    totalMemory: 256000000, // 总内存使用(bytes)
+    cachedResources: 190,   // 缓存资源数量
+    lastCleanupTime: 1234567890 // 上次清理时间
+}
+*/
+
+// 设置内存警告回调
+memoryManager.setWarningCallback((stats) => {
+    console.warn('Memory usage warning:', stats);
+});
+
+// 手动清理资源
+memoryManager.cleanup();
+```
+
+**性能优化建议**：
+1. 缓存策略
+   - 根据使用频率调整缓存大小
+   - 合理设置清理阈值
+   - 选择适当的释放策略
+
+2. 内存监控
+   - 定期检查内存使用
+   - 设置合理的警告阈值
+   - 及时响应内存警告
+
+3. 资源管理
+   - 及时释放不需要的资源
+   - 使用预加载优化加载时间
+   - 避免重复创建相同资源
 
 ### 工具类
 - GeometryFactory: 带缓存的几何体管理
