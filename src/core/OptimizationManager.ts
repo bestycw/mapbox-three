@@ -4,6 +4,8 @@ import { ExtendedObject3D } from '../types';
 import { OptimizationConfig } from '../types/config';
 import { LODManager } from '../optimization/LODManager';
 import { ObjectPoolManager } from '../optimization/ObjectPoolManager';
+import { InstanceManager } from '../optimization/InstanceManager';
+import { InstanceConfig } from '../types/optimization';
 
 /**
  * OptimizationManager - 管理Three.js场景的性能优化
@@ -12,18 +14,20 @@ export class OptimizationManager {
     private static instance: OptimizationManager;
     private lodManager: LODManager;
     private objectPoolManager: ObjectPoolManager;
+    private instanceManager: InstanceManager;
 
     private constructor(config?: OptimizationConfig) {
-        this.lodManager = new LODManager( config?.lod);
+        this.lodManager = new LODManager(config?.lod);
         this.objectPoolManager = new ObjectPoolManager(config?.objectPool);
+        this.instanceManager = InstanceManager.getInstance(config?.instancing);
     }
 
     /**
      * 获取OptimizationManager实例
      */
-    public static getInstance( config?: OptimizationConfig): OptimizationManager {
+    public static getInstance(config?: OptimizationConfig): OptimizationManager {
         if (!OptimizationManager.instance) {
-            OptimizationManager.instance = new OptimizationManager( config);
+            OptimizationManager.instance = new OptimizationManager(config);
         }
         return OptimizationManager.instance;
     }
@@ -38,7 +42,7 @@ export class OptimizationManager {
     /**
      * 更新LOD对象
      */
-    public updateLOD(camera:THREE.Camera): void {
+    public updateLOD(camera: THREE.Camera): void {
         this.lodManager.update(camera);
     }
 
@@ -82,6 +86,47 @@ export class OptimizationManager {
     }
 
     /**
+     * 添加实例化对象
+     */
+    public addInstance(
+        object: ExtendedObject3D,
+        groupId: string,
+        config?: InstanceConfig
+    ): THREE.InstancedMesh | null {
+        return this.instanceManager.addInstance(object, groupId, config);
+    }
+
+    /**
+     * 更新实例化对象
+     */
+    public updateInstance(object: ExtendedObject3D, groupId: string): void {
+        this.instanceManager.updateInstance(object, groupId);
+    }
+
+    /**
+     * 移除实例化对象
+     */
+    public removeInstance(object: ExtendedObject3D, groupId: string): void {
+        this.instanceManager.removeInstance(object, groupId);
+    }
+
+    /**
+     * 获取实例化管理器
+     */
+    public getInstanceManager(): InstanceManager {
+        return this.instanceManager;
+    }
+
+    /**
+     * 更新所有优化系统
+     */
+    public update(camera: THREE.Camera): void {
+        this.lodManager.update(camera);
+        this.instanceManager.update();
+        this.cleanup();
+    }
+
+    /**
      * 清理优化管理器
      */
     public cleanup(): void {
@@ -94,5 +139,6 @@ export class OptimizationManager {
     public dispose(): void {
         this.lodManager.dispose();
         this.objectPoolManager.dispose();
+        this.instanceManager.dispose();
     }
 } 

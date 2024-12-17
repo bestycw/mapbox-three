@@ -21,6 +21,8 @@ export interface OptimizationMetrics {
     poolSize: number;       // Size of object pool
     memoryUsage: number;    // Current memory usage
     lastUpdate: number;     // Timestamp of last metrics update
+    instanceCount?: number; // Number of instanced objects
+    drawCalls?: number;    // Number of draw calls
 }
 
 /**
@@ -114,4 +116,39 @@ export interface PerformanceData {
     geometries: number;
     materials: number;
     timestamp: number;
+}
+
+/**
+ * 实例化配置
+ */
+export interface InstanceConfig {
+    initialCount?: number;      // 初始实例数量
+    maxCount?: number;          // 最大实例数量
+    batchSize?: number;         // 批处理大小
+    dynamicBatching?: boolean;  // 是否启用动态批处理
+    updateInterval?: number;    // 更新间隔
+    frustumCulled?: boolean;    // 是否启用视锥体剔除
+    castShadow?: boolean;       // 是否投射阴影
+    receiveShadow?: boolean;    // 是否接收阴影
+}
+
+/**
+ * 实例化性能指标
+ */
+export interface InstanceMetrics {
+    instanceCount: number;     // 实例数量
+    batchCount: number;       // 批次数量
+    memoryUsage: number;      // 内存使用
+    updateTime: number;       // 更新时间
+    drawCalls: number;        // 绘制调用次数
+}
+
+/**
+ * 实例化组信息
+ */
+export interface InstanceGroupInfo {
+    instanceCount: number;    // 当前实例数量
+    maxInstances: number;     // 最大实例数量
+    memoryUsage: number;      // 内存使用
+    dirty: boolean;          // 是否需要更新
 } 
