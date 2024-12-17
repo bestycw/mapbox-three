@@ -81,22 +81,30 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
     // 性能优化配置
     optimization: {
         // 批处理
-        batching: {
-            enabled: true,
-            maxBatchSize: 1000,
-            // dynamicBatching: true
-        },
+        // batching: {
+        //     enabled: true,
+        //     maxBatchSize: 1000,
+        //     // dynamicBatching: true
+        // },
 
         // 实例化
         instancing: {
-            enabled: true,
+            enabled: false,
             threshold: 100,
-            // dynamicInstancing: true
+            batchSize: 100,
+            dynamicBatching: true,
+            updateInterval: 16,
+            maxInstanceCount: 10000
         },
 
         // LOD
         lod: {
             enabled: false,
+            // thresholds: [0, 1000, 2000],
+            dynamicAdjustment: false,
+            transitionDuration: 300,
+            performanceTarget: 60,
+            updateInterval: 16,
             levels: [
                 { distance: 0, detail: 1 },
                 { distance: 1000, detail: 0.5 },
@@ -109,14 +117,13 @@ export const DEFAULT_CONFIG: MapboxThreeConfig = {
         // 对象池
         objectPool: {
             enabled: false,
-            maxSize: 1000,
-            preloadCount: 10,
-            autoExpand: true,
+            defaultPoolSize: 1000,
+            maxPoolSize: 10000,
             cleanupInterval: 60000,
             predictiveScaling: false,
             minIdleTime: 30000,
             maxIdleTime: 300000,
-            warmupCount: 0 
+            warmupCount: 0
         },
 
         // // 渲染优化

@@ -33,31 +33,6 @@ export interface OptimizationMetrics {
  * Configuration for optimization strategies
  */
 export interface OptimizationConfig {
-    // Batching configuration
-    batchingEnabled: boolean;
-    batchSize: number;
-    maxBatches: number;
-    
-    // Instancing configuration
-    instanceThreshold: number;
-    maxInstances: number;
-    
-    // Object pooling configuration
-    poolEnabled: boolean;
-    poolTypes: string[];
-    maxObjectsInPool: number;
-    
-    // LOD configuration
-    lodLevels: Record<string, {
-        distance: number;
-        detail: number | THREE.Mesh;
-    }>;
-    
-    // Culling configuration
-    cullingEnabled: boolean;
-    cullingThreshold: number;
-    frustumCulling: boolean;
-    occlusionCulling: boolean;
     
     // Spatial indexing configuration
     spatialIndexConfig: {
@@ -65,37 +40,8 @@ export interface OptimizationConfig {
         maxObjectsPerNode: number;
         bounds: THREE.Box3;
     };
-    
-    // Additional configurations
-    geometryCacheSize: number;
-    materialCacheSize: number;
-    eventThrottling: boolean;
-    throttleDelay: number;
-    disposeUnusedTimeout: number;
-    autoReleaseGeometry: boolean;
-    useSharedGeometry: boolean;
-    useCompressedTextures: boolean;
-    preserveDrawingBuffer: boolean;
-    antialias: 'auto' | boolean;
-    useWorkers: boolean;
-    maxWorkers: number;
-    workerTasks: string[];
-    enableDebug: boolean;
-    performanceMonitoring: boolean;
-    monitoringInterval: number;
-    autoOptimize: boolean;
-    optimizationInterval: number;
-    maxDrawCalls: number;
-    maxTriangles: number;
-    maxTextures: number;
-    maxLights: number;
-    beforeOptimize: ((scene: THREE.Scene) => void) | null;
-    afterOptimize: ((scene: THREE.Scene) => void) | null;
-    lod?: {
-        enabled?: boolean;
-        thresholds?: number[];
-        updateInterval?: number;
-    };
+
+    lod?: LODConfig;
     instancing?: {
         enabled?: boolean;
         threshold?: number;
@@ -109,6 +55,10 @@ export interface OptimizationConfig {
         defaultPoolSize?: number;
         maxPoolSize?: number;
         cleanupInterval?: number;
+        predictiveScaling?: boolean;
+        minIdleTime?: number;
+        maxIdleTime?: number;
+        warmupCount?: number;
     };
 }
 
@@ -225,4 +175,19 @@ export interface LODMetrics {
     activeObjects: number;
     switchCount: number;
     memoryUsage: number;
+}
+
+/**
+ * LOD 配置
+ */
+export interface LODConfig {
+    enabled?: boolean;
+    updateInterval?: number;
+    dynamicAdjustment?: boolean;
+    transitionDuration?: number;
+    performanceTarget?: number;
+    levels?: {
+        distance: number;
+        detail: number | THREE.Mesh;
+    }[];
 } 

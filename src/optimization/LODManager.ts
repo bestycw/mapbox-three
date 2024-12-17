@@ -1,20 +1,7 @@
 import * as THREE from 'three';
 import { ExtendedObject3D } from '../types';
+import { LODConfig } from '../types/optimization';
 // import { MapboxThree } from 'main';
-
-/**
- * LOD配置接口
- */
-export interface LODConfig {
-    enabled?: boolean;
-    levels?: Array<{
-        distance: number;
-        detail: number;
-    }>;
-    dynamicAdjustment?: boolean;
-    transitionDuration?: number;
-    performanceTarget?: number; // 目标帧率
-}
 
 /**
  * LOD管理器 - 处理物体的细节层次
@@ -22,7 +9,7 @@ export interface LODConfig {
 export class LODManager {
     private lodObjects: Map<string, THREE.LOD> = new Map();
     private geometryCache: Map<string, THREE.BufferGeometry> = new Map();
-    private config: Required<LODConfig>;
+    private config:LODConfig;
     private beforeLODHook?: (object: ExtendedObject3D, distance: number) => void;
     private afterLODHook?: (object: ExtendedObject3D, distance: number) => void;
     private maxCacheSize: number = 100; // 最大缓存大小
@@ -37,17 +24,12 @@ export class LODManager {
     // private mapboxThree: MapboxThree;
     
     constructor(config?: LODConfig) {
-        // this.mapboxThree = mapboxThree;
         this.config = {
             enabled: config?.enabled ?? true,
-            levels: config?.levels ?? [
-                { distance: 0, detail: 1 },
-                { distance: 500, detail: 0.5 },
-                { distance: 1000, detail: 0.25 }
-            ],
             dynamicAdjustment: config?.dynamicAdjustment ?? false,
-            transitionDuration: config?.transitionDuration ?? 300,
-            performanceTarget: config?.performanceTarget ?? 60
+            transitionDuration: config?.transitionDuration ?? 0,
+            performanceTarget: config?.performanceTarget ?? 60,
+            levels: config?.levels ?? []
         };
     }
 
@@ -491,7 +473,7 @@ export class LODManager {
      * 动态调整LOD级别
      */
     private adjustLODLevels(): void {
-        if (!this.config.dynamicAdjustment) return;
+        if (!this.config.dynamicAdjustment || !this.config.levels || !this.config.performanceTarget) return;
 
         const currentTime = performance.now();
         const deltaTime = currentTime - this.lastFrameTime;
@@ -499,14 +481,12 @@ export class LODManager {
         this.lastFrameTime = currentTime;
 
         const fps = 1000 / deltaTime;
-        if (fps < this.config.performanceTarget! * 0.8) {
-            // 性能不足，增加LOD距离
+        if (fps < this.config.performanceTarget * 0.8) {
             this.config.levels = this.config.levels.map(level => ({
                 distance: level.distance * 0.8,
                 detail: level.detail
             }));
-        } else if (fps > this.config.performanceTarget! * 1.2) {
-            // 性能充足，减少LOD距离
+        } else if (fps > this.config.performanceTarget * 1.2) {
             this.config.levels = this.config.levels.map(level => ({
                 distance: level.distance * 1.2,
                 detail: level.detail
