@@ -207,7 +207,7 @@
             return mesh;
         }
 
-        function createInstance(position, groupId = 'default', lngLat) {
+        function createInstance(position, groupId = 'random', lngLat) {
             const template = createTemplate();
             template.position.copy(position);
             
@@ -380,27 +380,19 @@
 
         function clearAll() {
             // 获取 instanceManager
-            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
-            
+            const instanceManager = mapboxThree.getOptimizationManager()
+            console.log(instanceManager);
             // 清除所有实例组
             ['grid', 'spiral', 'random'].forEach(groupId => {
-                // 先获取组内的所有实例
-                const group = instanceManager.getInstanceGroup(groupId);
-                if (group) {
-                    // 从场景中移除实例化网格
-                    const instancedMesh = group.instancedMesh;
-                    if (instancedMesh) {
-                        mapboxThree.remove(instancedMesh);
-                    }
-                    // 清除组
-                    instanceManager.clearInstanceGroup(groupId);
-                }
+                // console.log(groupId);
+                // 直接使用 clearInstances，它会处理所有清理工作
+                instanceManager.clearInstanceGroup(groupId);
             });
             
             // 清除实例集合
             instances.clear();
             
-            // 强制更新统计信息
+            // 更新统计信息
             updateStats();
         }
 

@@ -303,17 +303,40 @@ export class InstanceManager {
         const group = this.instanceGroups.get(groupId);
         if (!group) return;
 
-        // 清除所有实例对象
+        // 清除所有实例对象和资源
+        group.objects.forEach((instanceId, object) => {
+            // console.log(object);
+            if (object instanceof THREE.Mesh) {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(mat => mat.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            }
+        });
+
+        // 清理实例化网格
+        if (group.mesh) {
+            if (group.mesh.geometry) group.mesh.geometry.dispose();
+            if (group.mesh.material) {
+                if (Array.isArray(group.mesh.material)) {
+                    group.mesh.material.forEach(mat => mat.dispose());
+                } else {
+                    group.mesh.material.dispose();
+                }
+            }
+            group.mesh.instanceMatrix.needsUpdate = true;
+            group.mesh.count = 0;
+        }
+
+        // 清除组数据
         group.objects.clear();
         group.count = 0;
-        group.dirty = true;
-
-        // 更新实例矩阵
-        for (let i = 0; i < group.maxCount; i++) {
-            group.mesh.setMatrixAt(i, new THREE.Matrix4());
-        }
-        group.mesh.instanceMatrix.needsUpdate = true;
-
+        this.instanceGroups.delete(groupId);
+        
         // 更新性能指标
         this.updateMetrics();
     }
@@ -413,5 +436,48 @@ export class InstanceManager {
         group.mesh = newMesh;
         group.maxCount = newMaxCount;
         group.matrix = newMatrix;
+    }
+
+    public clearInstanceGroup(groupId: string):void {
+        const group = this.instanceGroups.get(groupId);
+        if (!group) return;
+
+        // 清除组内所有实例
+        group.objects.forEach((instanceId, object) => {
+            if (object instanceof THREE.Mesh) {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(mat => mat.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            }
+        });
+
+        // 清理实例化网格
+        if (group.mesh) {
+            if (group.mesh.geometry) group.mesh.geometry.dispose();
+            if (group.mesh.material) {
+                if (Array.isArray(group.mesh.material)) {
+                    group.mesh.material.forEach(mat => mat.dispose());
+                } else {
+                    group.mesh.material.dispose();
+                }
+            }
+            group.mesh.instanceMatrix.needsUpdate = true;
+            group.mesh.count = 0;
+        }
+
+        // 清除组数据
+        group.objects.clear();
+        group.count = 0;
+        this.instanceGroups.delete(groupId);
+    }
+
+    // 添加 getInstanceGroup 方法
+    public getInstanceGroup(groupId: string): InstanceGroup | undefined {
+        return this.instanceGroups.get(groupId);
     }
 } 
