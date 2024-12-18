@@ -1,445 +1,398 @@
 import * as THREE from 'three';
-import { defaultConfig, ExtendedObject3D } from '../config';
-
+import { EventEmitter } from 'events';
+import { 
+    ExtendedObject3D,
+    ObjectPoolConfig,
+    ObjectPoolMetrics,
+    // BaseConfig
+} from '../config/types';
+import { defaultConfig } from '../config/defaults';
+import { BaseStrategy } from './BaseStrategy';
 /**
- * 对象池配置接口
+ * 对象池接口
  */
-export interface ObjectPoolConfig {
-    enabled?: boolean;
-    maxSize?: number;
-    preloadCount?: number;
-    autoExpand?: boolean;
-    cleanupInterval?: number;
-    predictiveScaling?: boolean;    // 启用预测性扩展
-    minIdleTime?: number;          // 最小空闲时间（毫秒）
-    maxIdleTime?: number;          // 最大空闲时间（毫秒）
-    warmupCount?: number;          // 预热对象数量
+interface ObjectPool<T extends ExtendedObject3D> {
+    active: Set<T>;               // 活跃对象集合
+    inactive: T[];                // 非活跃对象数组
+    factory: () => T;             // 对象工厂函数
+    reset?: (obj: T) => void;     // 重置对象的函数
+    lastAccessTime: number;       // 最后访问时间
+    metadata: {                   // 池元数据
+        creationTime: number;     // 创建时间
+        totalCreated: number;     // 总共创建的对象数
+        maxActive: number;        // 最大活跃对象数
+        hitCount: number;         // 命中次数
+        missCount: number;        // 未命中次数
+    };
 }
 
 /**
- * 对象生命周期信息
+ * 对象池管理器事件类型
  */
-interface ObjectLifecycle {
-    createdAt: number;
-    lastUsedAt: number;
-    useCount: number;
-    timeInPool: number;
-    lastReturnedAt?: number;
-}
-
-/**
- * 池性能指标
- */
-interface PoolPerformanceMetrics {
-    hitRate: number;
-    averageAcquisitionTime: number;
-    peakUsage: number;
-    turnoverRate: number;
-    memoryUsage: number;
-    predictionAccuracy?: number;
-}
+export type ObjectPoolEvents = {
+    'objectAcquired': { key: string; object: ExtendedObject3D };
+    'objectReleased': { key: string; object: ExtendedObject3D };
+    'poolCreated': { key: string; size: number };
+    'poolExpanded': { object: ExtendedObject3D };
+    'poolShrinked': { key: string; newSize: number };
+    'poolCleared': { key: string };
+    'error': { message: string; error?: any };
+};
 
 /**
  * 对象池管理器 - 管理Three.js对象的重用
  */
-export class ObjectPoolManager {
-    private pools: Map<string, ExtendedObject3D[]> = new Map();
-    private config: Required<ObjectPoolConfig>;
-    private inUseObjects: Map<string, Set<ExtendedObject3D>> = new Map();
-    private lastCleanupTime: number = 0;
-    
-    // 新增的生命周期和性能监控
-    private objectLifecycles: Map<ExtendedObject3D, ObjectLifecycle> = new Map();
-    private performanceMetrics: Map<string, PoolPerformanceMetrics> = new Map();
-    private acquisitionTimes: Map<string, number[]> = new Map();
-    private demandHistory: Map<string, { timestamp: number, count: number }[]> = new Map();
-    
-    constructor(config?: ObjectPoolConfig) {
-        this.config = {
-            ...defaultConfig.optimization!.objectPool!,
+export class ObjectPoolManager extends BaseStrategy<ObjectPoolConfig> {
+    private static instance: ObjectPoolManager;
+    private pools: Map<string, ObjectPool<any>> = new Map();
+    private eventEmitter = new EventEmitter();
+    protected metrics: Required<ObjectPoolMetrics> = {
+        operationCount: 0,
+        lastUpdateTime: 0,
+        memoryUsage: 0,
+        totalObjects: 0,
+        activeObjects: 0,
+        inactiveObjects: 0,
+        hitRatio: 0
+    };
+
+    public constructor(config: Partial<ObjectPoolConfig>) {
+        super(config as ObjectPoolConfig);
+    }
+
+    public static getInstance(config: Partial<ObjectPoolConfig>): ObjectPoolManager {
+        if (!ObjectPoolManager.instance) {
+            ObjectPoolManager.instance = new ObjectPoolManager(config);
+        }
+        return ObjectPoolManager.instance;
+    }
+
+    protected validateConfig(config: Partial<ObjectPoolConfig>): Required<ObjectPoolConfig> {
+        const defaultPool = defaultConfig.optimization?.objectPool ?? {};
+        return {
+            ...defaultPool,
             ...config
         } as Required<ObjectPoolConfig>;
     }
 
-    /**
-     * 从对象池获取对象
-     */
-    public acquire<T extends ExtendedObject3D>(
-        type: string,
-        factory: () => T,
-        reset?: (obj: T) => void
-    ): T {
-        const startTime = performance.now();
-
-        if (!this.config.enabled) {
-            return factory();
+    protected onInitialize(): void {
+        if (this.config.cleanupInterval) {
+            setInterval(() => this.cleanup(), this.config.cleanupInterval);
         }
+    }
 
-        let pool = this.pools.get(type);
-        if (!pool) {
-            pool = [];
-            this.pools.set(type, pool);
-            this.preload(type, factory);
-        }
+    protected onUpdate(): void {
+        this.updatePoolMetrics();
+    }
 
-        // 预测性扩展
-        if (this.config.predictiveScaling) {
-            this.updateDemandHistory(type);
-            const prediction = this.predictDemand(type);
-            if (prediction > pool.length) {
-                this.expandPool(type, factory, prediction - pool.length);
-            }
-        }
+    protected onDispose(): void {
+        this.pools.clear();
+    }
 
-        let object = pool.pop() as T;
-        if (!object && this.config.autoExpand) {
-            object = factory();
-        }
+    protected onClear(): void {
+        this.clearAllPools();
+    }
 
-        if (!object) {
-            throw new Error(`No available objects in pool: ${type}`);
-        }
-
-        // 更新生命周期信息
-        const lifecycle = this.objectLifecycles.get(object) || {
-            createdAt: performance.now(),
-            lastUsedAt: performance.now(),
-            useCount: 0,
-            timeInPool: 0
+    protected updateMetrics(): void {
+        this.updatePoolMetrics();
+        this.metrics = {
+            ...this.metrics,
+            operationCount: this.metrics.operationCount + 1,
+            lastUpdateTime: Date.now(),
+            memoryUsage: this.estimateMemoryUsage()
         };
-        
-        lifecycle.lastUsedAt = performance.now();
-        lifecycle.useCount++;
-        if (lifecycle.lastReturnedAt) {
-            lifecycle.timeInPool += performance.now() - lifecycle.lastReturnedAt;
-        }
-        this.objectLifecycles.set(object, lifecycle);
-
-        // 记录使��中的对象
-        if (!this.inUseObjects.has(type)) {
-            this.inUseObjects.set(type, new Set());
-        }
-        this.inUseObjects.get(type)!.add(object);
-
-        // 重置对象状态
-        if (reset) {
-            reset(object);
-        }
-
-        // 更新性能指标
-        this.updateAcquisitionTime(type, performance.now() - startTime);
-        this.updatePerformanceMetrics(type);
-
-        return object;
     }
 
     /**
-     * 释放对象回对象池
+     * 更新池指标
      */
-    public release(type: string, object: ExtendedObject3D): void {
-        if (!this.config.enabled) {
-            return;
-        }
+    private updatePoolMetrics(): void {
+        let totalActive = 0;
+        let totalInactive = 0;
+        let totalHits = 0;
+        let totalMisses = 0;
 
-        const pool = this.pools.get(type);
-        if (!pool) {
-            this.pools.set(type, [object]);
-            return;
-        }
-
-        // 检查对象池大小限制
-        if (pool.length >= this.config.maxSize) {
-            this.disposeObject(object);
-            return;
-        }
-
-        // 从使用中移除
-        this.inUseObjects.get(type)?.delete(object);
-
-        // 更新生命周期信息
-        const lifecycle = this.objectLifecycles.get(object);
-        if (lifecycle) {
-            lifecycle.lastReturnedAt = performance.now();
-        }
-
-        // 重置对象基本属性
-        object.position.set(0, 0, 0);
-        object.rotation.set(0, 0, 0);
-        object.scale.set(1, 1, 1);
-        object.visible = false;
-
-        pool.push(object);
-    }
-
-    /**
-     * 预热对象池
-     */
-    private preload<T extends ExtendedObject3D>(type: string, factory: () => T): void {
-        const pool = this.pools.get(type)!;
-        const warmupCount = this.config.warmupCount || this.config.preloadCount;
-        
-        for (let i = 0; i < warmupCount; i++) {
-            const object = factory();
-            object.visible = false;
-            this.objectLifecycles.set(object, {
-                createdAt: performance.now(),
-                lastUsedAt: performance.now(),
-                useCount: 0,
-                timeInPool: 0
-            });
-            pool.push(object);
-        }
-    }
-
-    /**
-     * 扩展对象池
-     */
-    private expandPool<T extends ExtendedObject3D>(type: string, factory: () => T, count: number): void {
-        const pool = this.pools.get(type)!;
-        for (let i = 0; i < count && pool.length < this.config.maxSize; i++) {
-            const object = factory();
-            object.visible = false;
-            this.objectLifecycles.set(object, {
-                createdAt: performance.now(),
-                lastUsedAt: performance.now(),
-                useCount: 0,
-                timeInPool: 0
-            });
-            pool.push(object);
-        }
-    }
-
-    /**
-     * 更新需求历史
-     */
-    private updateDemandHistory(type: string): void {
-        if (!this.demandHistory.has(type)) {
-            this.demandHistory.set(type, []);
-        }
-        
-        const history = this.demandHistory.get(type)!;
-        const currentDemand = this.inUseObjects.get(type)?.size || 0;
-        
-        history.push({
-            timestamp: performance.now(),
-            count: currentDemand
+        this.pools.forEach(pool => {
+            totalActive += pool.active.size;
+            totalInactive += pool.inactive.length;
+            totalHits += pool.metadata.hitCount;
+            totalMisses += pool.metadata.missCount;
         });
 
-        // 保留最近1小时的历史数据
-        const oneHourAgo = performance.now() - 3600000;
-        while (history.length > 0 && history[0].timestamp < oneHourAgo) {
-            history.shift();
-        }
-    }
-
-    /**
-     * 预测未来需求
-     */
-    private predictDemand(type: string): number {
-        const history = this.demandHistory.get(type);
-        if (!history || history.length < 2) {
-            return this.config.preloadCount;
-        }
-
-        // 使用简单的线性回归预测
-        const recentHistory = history.slice(-10); // 使用最近10个数据点
-        const xMean = recentHistory.reduce((sum, p) => sum + p.timestamp, 0) / recentHistory.length;
-        const yMean = recentHistory.reduce((sum, p) => sum + p.count, 0) / recentHistory.length;
-
-        const slope = recentHistory.reduce((sum, p) => {
-            return sum + (p.timestamp - xMean) * (p.count - yMean);
-        }, 0) / recentHistory.reduce((sum, p) => {
-            return sum + Math.pow(p.timestamp - xMean, 2);
-        }, 0);
-
-        const prediction = yMean + slope * (performance.now() - xMean);
-        return Math.max(Math.ceil(prediction), this.config.preloadCount);
-    }
-
-    /**
-     * 更新获取时间统计
-     */
-    private updateAcquisitionTime(type: string, time: number): void {
-        if (!this.acquisitionTimes.has(type)) {
-            this.acquisitionTimes.set(type, []);
-        }
-        const times = this.acquisitionTimes.get(type)!;
-        times.push(time);
-        if (times.length > 100) times.shift(); // 保留最近100次的数据
-    }
-
-    /**
-     * 更新性能指标
-     */
-    private updatePerformanceMetrics(type: string): void {
-        const pool = this.pools.get(type);
-        const inUse = this.inUseObjects.get(type);
-        const times = this.acquisitionTimes.get(type);
-
-        if (!pool || !times) return;
-
-        const totalObjects = pool.length + (inUse?.size || 0);
-        const metrics: PoolPerformanceMetrics = {
-            hitRate: pool.length > 0 ? pool.length / totalObjects : 0,
-            averageAcquisitionTime: times.reduce((a, b) => a + b, 0) / times.length,
-            peakUsage: Math.max(inUse?.size || 0, this.performanceMetrics.get(type)?.peakUsage || 0),
-            turnoverRate: (inUse?.size || 0) / totalObjects,
-            memoryUsage: this.estimateMemoryUsage(type)
+        this.metrics = {
+            ...this.metrics,
+            totalObjects: totalActive + totalInactive,
+            activeObjects: totalActive,
+            inactiveObjects: totalInactive,
+            hitRatio: totalHits / (totalHits + totalMisses) || 0
         };
-
-        this.performanceMetrics.set(type, metrics);
     }
 
     /**
      * 估算内存使用
      */
-    private estimateMemoryUsage(type: string): number {
-        const pool = this.pools.get(type);
-        const inUse = this.inUseObjects.get(type);
-        if (!pool) return 0;
-
-        let totalSize = 0;
-        const countObjects = (obj: ExtendedObject3D) => {
-            if (obj instanceof THREE.Mesh) {
-                // 估算几何体内存
-                if (obj.geometry instanceof THREE.BufferGeometry) {
-                    for (const attribute of Object.values(obj.geometry.attributes) as THREE.BufferAttribute[]) {
-                        totalSize += attribute.array.byteLength;
-                    }
-                }
-                // 估算材质内存
-                if (obj.material instanceof THREE.Material) {
-                    totalSize += 1024; // 假设每个材质约1KB
-                }
-            }
-        };
-
-        pool.forEach(countObjects);
-        inUse?.forEach(countObjects);
-
-        return totalSize;
+    private estimateMemoryUsage(): number {
+        let usage = 0;
+        this.pools.forEach(pool => {
+            // 估算每个对象约占用1KB
+            usage += (pool.active.size + pool.inactive.length) * 1024;
+        });
+        return usage;
     }
 
     /**
-     * 清理长时间未使用的对象
+     * 从池中获取对象
      */
-    public clearUp(): void {
-        const currentTime = Date.now();
-        if (currentTime - this.lastCleanupTime < this.config.cleanupInterval) {
+    public acquire<T extends ExtendedObject3D>(
+        key: string,
+        factory: () => T,
+        reset?: (obj: T) => void
+    ): T {
+        let pool = this.pools.get(key) as ObjectPool<T>;
+
+        if (!pool) {
+            pool = this.createPool(key, factory, reset);
+        }
+
+        pool.lastAccessTime = Date.now();
+        let object: T;
+
+        if (pool.inactive.length > 0) {
+            object = pool.inactive.pop()!;
+            pool.metadata.hitCount++;
+        } else {
+            object = this.expandPool(pool);
+            pool.metadata.missCount++;
+        }
+
+        if (pool.reset) {
+            pool.reset(object);
+        }
+
+        pool.active.add(object);
+        pool.metadata.maxActive = Math.max(pool.metadata.maxActive, pool.active.size);
+        
+        this.updateMetrics();
+        this.emit('objectAcquired', { key, object });
+
+        return object;
+    }
+
+    /**
+     * 将对象返回池中
+     */
+    public release<T extends ExtendedObject3D>(key: string, object: T): void {
+        const pool = this.pools.get(key) as ObjectPool<T>;
+        if (!pool || !pool.active.has(object)) {
+            this.handleError(`Attempting to release an object not from pool: ${key}`);
             return;
         }
 
-        this.pools.forEach((pool, type) => {
-            const inUseCount = this.inUseObjects.get(type)?.size ?? 0;
-            const totalCount = pool.length + inUseCount;
-
-            // 检查空闲时间
-            const idleObjects = pool.filter(obj => {
-                const lifecycle = this.objectLifecycles.get(obj);
-                if (!lifecycle?.lastReturnedAt) return false;
-                
-                const idleTime = currentTime - lifecycle.lastReturnedAt;
-                return idleTime > this.config.maxIdleTime;
-            });
-
-            // 移除长时间空闲的对象
-            idleObjects.forEach(obj => {
-                const index = pool.indexOf(obj);
-                if (index !== -1) {
-                    pool.splice(index, 1);
-                    this.disposeObject(obj);
-                    this.objectLifecycles.delete(obj);
-                }
-            });
-
-            // 如果总数超过预加载数量的两倍，则清理多余的对象
-            if (totalCount > this.config.preloadCount * 2) {
-                const excessCount = pool.length - this.config.preloadCount;
-                if (excessCount > 0) {
-                    const objectsToRemove = pool.splice(0, excessCount);
-                    objectsToRemove.forEach(obj => {
-                        this.disposeObject(obj);
-                        this.objectLifecycles.delete(obj);
-                    });
-                }
+        try {
+            pool.active.delete(object);
+            if (pool.inactive.length < (this.config.maxPoolSize ?? Infinity)) {
+                pool.inactive.push(object);
+                object.visible = false;
+            } else {
+                // 如果池已满，直接销毁对象
+                this.disposeObject(object);
             }
-        });
 
-        this.lastCleanupTime = currentTime;
+            pool.lastAccessTime = Date.now();
+            this.updateMetrics();
+            this.emit('objectReleased', { key, object });
+        } catch (error) {
+            this.handleError('Failed to release object', error);
+        }
     }
 
     /**
-     * 销毁对象
+     * 创建新的对象池
+     */
+    private createPool<T extends ExtendedObject3D>(
+        key: string,
+        factory: () => T,
+        reset?: (obj: T) => void
+    ): ObjectPool<T> {
+        const pool: ObjectPool<T> = {
+            active: new Set(),
+            inactive: [],
+            factory,
+            reset,
+            lastAccessTime: Date.now(),
+            metadata: {
+                creationTime: Date.now(),
+                totalCreated: 0,
+                maxActive: 0,
+                hitCount: 0,
+                missCount: 0
+            }
+        };
+
+        // 预填充池
+        if (this.config.prewarmPools) {
+            const size = Math.min(this.config.defaultPoolSize!, this.config.maxPoolSize!);
+            for (let i = 0; i < size; i++) {
+                const object = factory();
+                object.visible = false;
+                pool.inactive.push(object);
+                pool.metadata.totalCreated++;
+            }
+        }
+
+        this.pools.set(key, pool);
+        this.emit('poolCreated', { key, size: pool.inactive.length });
+        return pool;
+    }
+
+    /**
+     * 扩展池容量
+     */
+    private expandPool<T extends ExtendedObject3D>(pool: ObjectPool<T>): T {
+        const object = pool.factory();
+        pool.metadata.totalCreated++;
+        
+        if (this.config.debugMode) {
+            console.debug(`[ObjectPoolManager] Created new object. Total created: ${pool.metadata.totalCreated}`);
+        }
+
+        this.emit('poolExpanded', { object });
+        return object;
+    }
+
+    /**
+     * 清理未使用的对象
+     */
+    public cleanup(): void {
+        const now = Date.now();
+        this.pools.forEach((pool, key) => {
+            // 检查池是否长时间未使用
+            const idleTime = now - pool.lastAccessTime;
+            if (idleTime > this.config.cleanupInterval! * 2) {
+                this.clearPool(key);
+                return;
+            }
+
+            // 收缩过大的池
+            const totalObjects = pool.active.size + pool.inactive.length;
+            const inactiveRatio = pool.inactive.length / totalObjects;
+
+            if (inactiveRatio > (this.config.shrinkThreshold ?? 0.3)) {
+                const targetInactive = Math.ceil((this.config.defaultPoolSize ?? 100) * (this.config.shrinkThreshold ?? 0.3));
+                while (pool.inactive.length > targetInactive) {
+                    const object = pool.inactive.pop();
+                    if (object) {
+                        this.disposeObject(object);
+                    }
+                }
+                this.emit('poolShrinked', { key, newSize: pool.inactive.length });
+            }
+        });
+
+        this.updateMetrics();
+    }
+
+    /**
+     * 销单个对象
      */
     private disposeObject(object: ExtendedObject3D): void {
         if (object instanceof THREE.Mesh) {
-            if (object.geometry) {
-                object.geometry.dispose();
-            }
-            if (object.material instanceof THREE.Material) {
+            if (object.geometry) object.geometry.dispose();
+            if (Array.isArray(object.material)) {
+                object.material.forEach(mat => mat.dispose());
+            } else if (object.material) {
                 object.material.dispose();
             }
         }
-        this.objectLifecycles.delete(object);
     }
 
     /**
-     * 获���对象池状态
+     * 获取池统计信息
      */
-    public getStats(): { [key: string]: { 
-        available: number; 
-        inUse: number;
-        metrics: PoolPerformanceMetrics;
-        lifecycle: {
-            averageUseCount: number;
-            averageTimeInPool: number;
-            oldestObject: number;
+    public getPoolStats(key: string) {
+        const pool = this.pools.get(key);
+        if (!pool) return null;
+
+        return {
+            active: pool.active.size,
+            inactive: pool.inactive.length,
+            totalCreated: pool.metadata.totalCreated,
+            maxActive: pool.metadata.maxActive,
+            hitRatio: pool.metadata.hitCount / (pool.metadata.hitCount + pool.metadata.missCount) || 0,
+            lastAccessTime: pool.lastAccessTime
         };
-    }} {
-        const stats: ReturnType<typeof this.getStats> = {};
-        
-        this.pools.forEach((pool, type) => {
-            const metrics = this.performanceMetrics.get(type) || {
-                hitRate: 0,
-                averageAcquisitionTime: 0,
-                peakUsage: 0,
-                turnoverRate: 0,
-                memoryUsage: 0
-            };
-
-            // 计算生命周期统计
-            const lifecycles = Array.from(this.objectLifecycles.values());
-            const averageUseCount = lifecycles.reduce((sum, l) => sum + l.useCount, 0) / lifecycles.length;
-            const averageTimeInPool = lifecycles.reduce((sum, l) => sum + l.timeInPool, 0) / lifecycles.length;
-            const oldestObject = Math.min(...lifecycles.map(l => l.createdAt));
-
-            stats[type] = {
-                available: pool.length,
-                inUse: this.inUseObjects.get(type)?.size ?? 0,
-                metrics,
-                lifecycle: {
-                    averageUseCount,
-                    averageTimeInPool,
-                    oldestObject
-                }
-            };
-        });
-
-        return stats;
     }
 
     /**
-     * 清空所有对象池
+     * 重置池的统计信息
      */
-    public dispose(): void {
-        this.pools.forEach(pool => {
-            pool.forEach(obj => this.disposeObject(obj));
+    public resetPoolStats(key: string): void {
+        const pool = this.pools.get(key);
+        if (!pool) return;
+
+        pool.metadata = {
+            creationTime: Date.now(),
+            totalCreated: pool.metadata.totalCreated,
+            maxActive: pool.active.size,
+            hitCount: 0,
+            missCount: 0
+        };
+    }
+
+    /**
+     * 获取池中活跃对象数量
+     */
+    public getActiveCount(key: string): number {
+        return this.pools.get(key)?.active.size || 0;
+    }
+
+    /**
+     * 获取池中非活跃对象数量
+     */
+    public getInactiveCount(key: string): number {
+        return this.pools.get(key)?.inactive.length || 0;
+    }
+
+    /**
+     * 清理特定的池
+     */
+    public clearPool(key: string): void {
+        const pool = this.pools.get(key);
+        if (!pool) return;
+
+        pool.active.clear();
+        pool.inactive = [];
+        this.updateMetrics();
+        this.emit('poolCleared', { key });
+    }
+
+    /**
+     * 清理所有池
+     */
+    public clearAllPools(): void {
+        this.pools.forEach((pool, key) => {
+            pool.active.clear();
+            pool.inactive = [];
+            this.emit('poolCleared', { key });
         });
-        this.pools.clear();
-        this.inUseObjects.clear();
-        this.objectLifecycles.clear();
-        this.performanceMetrics.clear();
-        this.acquisitionTimes.clear();
-        this.demandHistory.clear();
+        this.updateMetrics();
+    }
+
+    /**
+     * 发出事件
+     */
+    public emit<K extends keyof ObjectPoolEvents>(
+        event: K,
+        data: ObjectPoolEvents[K]
+    ): boolean {
+        return this.eventEmitter.emit(event, data);
+    }
+
+    /** 
+     * 处理错误
+     */
+    protected handleError(message: string, error?: any): void {
+        console.error(`[ObjectPoolManager] ${message}`, error);
+        this.emit('error', { message, error });
     }
 } 

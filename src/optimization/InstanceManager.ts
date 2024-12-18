@@ -1,19 +1,12 @@
 import * as THREE from 'three';
-import { ExtendedObject3D, InstancingConfig } from '../config';
+import { 
+    ExtendedObject3D, 
+    InstanceConfig,
+    InstanceMetrics,
+
+} from '../config/types';
 import { defaultConfig } from '../config/defaults';
-
-/**
- * 实例化管理器配置接口
- */
-export interface InstanceManagerConfig {
-    enabled?: boolean;
-    threshold?: number;           // 启用实例化的阈值
-    maxInstanceCount?: number;    // 每个组的最大实例数
-    batchSize?: number;          // 批处理大小
-    dynamicBatching?: boolean;   // 是否启用动态批处理
-    updateInterval?: number;     // 更新间隔（毫秒）
-}
-
+import { BaseStrategy } from './BaseStrategy';
 /**
  * 实例组接口
  */
@@ -31,36 +24,104 @@ interface InstanceGroup {
 /**
  * 实例化管理器 - 管理Three.js对象的实例化渲染
  */
-export class InstanceManager {
+export class InstanceManager extends BaseStrategy<InstanceConfig> {
     private static instance: InstanceManager;
-    private config: Required<InstanceManagerConfig>;
     private instanceGroups: Map<string, InstanceGroup> = new Map();
-    private lastUpdateTime: number = 0;
-    private metrics: {
-        instanceCount: number;
-        batchCount: number;
-        memoryUsage: number;
-        updateTime: number;
-        drawCalls: number;
-    } = {
+    protected metrics: Required<InstanceMetrics> = {
+        operationCount: 0,
+        lastUpdateTime: 0,
+        memoryUsage: 0,
         instanceCount: 0,
         batchCount: 0,
-        memoryUsage: 0,
         updateTime: 0,
         drawCalls: 0
     };
 
-    private constructor(config: InstanceManagerConfig) {
-        this.config = {
-            ...defaultConfig.optimization!.instancing!,
-            ...config
-        } as Required<InstanceManagerConfig>;
+    public constructor(config: Partial<InstanceConfig>) {
+        super(config as InstanceConfig);
     }
 
-    /**
-     * 获取InstanceManager实例
-     */
-    public static getInstance(config: InstanceManagerConfig): InstanceManager {
+    protected validateConfig(config: Partial<InstanceConfig>): Required<InstanceConfig> {
+        const defaultInstancing = defaultConfig.optimization?.instancing ?? {};
+        return {
+            ...defaultInstancing,
+            ...config
+        } as Required<InstanceConfig>;
+    }
+
+    protected onInitialize(): void {
+        // 初始化时不需要特殊处理
+    }
+
+    protected onUpdate(params: any): void {
+        const startTime = performance.now();
+        this.instanceGroups.forEach(group => {
+            if (group.dirty) {
+                for (let i = 0; i < group.count; i++) {
+                    group.mesh.setMatrixAt(i, group.matrix[i]);
+                }
+                group.mesh.instanceMatrix.needsUpdate = true;
+                group.dirty = false;
+            }
+        });
+        this.metrics.updateTime = performance.now() - startTime;
+    }
+
+    protected onDispose(): void {
+        this.instanceGroups.forEach(group => {
+            this.disposeResources({
+                geometries: [group.mesh.geometry],
+                materials: Array.isArray(group.material) ? group.material : [group.material]
+            });
+        });
+        this.instanceGroups.clear();
+    }
+
+    private disposeResources(resources: {
+        geometries?: THREE.BufferGeometry[];
+        materials?: THREE.Material[];
+        textures?: THREE.Texture[];
+    }): void {
+        if (resources.geometries) {
+            resources.geometries.forEach(geometry => geometry?.dispose());
+        }
+        if (resources.materials) {
+            resources.materials.forEach(material => material?.dispose());
+        }
+        if (resources.textures) {
+            resources.textures.forEach(texture => texture?.dispose());
+        }
+    }
+
+    protected onClear(): void {
+        this.instanceGroups.forEach((group, groupId) => {
+            this.clearInstances(groupId);
+        });
+    }
+
+    protected updateMetrics(): void {
+        let totalInstances = 0;
+        let totalMemory = 0;
+
+        this.instanceGroups.forEach(group => {
+            totalInstances += group.count;
+            totalMemory += this.calculateGroupMemory(group);
+        });
+
+        this.metrics = {
+            ...this.metrics,
+            instanceCount: totalInstances,
+            batchCount: this.instanceGroups.size,
+            memoryUsage: totalMemory,
+            updateTime: this.metrics.updateTime,
+            drawCalls: this.instanceGroups.size,
+            operationCount: this.metrics.operationCount + 1,
+            lastUpdateTime: Date.now()
+        };
+    }
+
+    // 以下是原有的公共方法，保持不变
+    public static getInstance(config: InstanceConfig): InstanceManager {
         if (!InstanceManager.instance) {
             InstanceManager.instance = new InstanceManager(config);
         }
@@ -73,7 +134,7 @@ export class InstanceManager {
     public addInstance(
         object: ExtendedObject3D,
         groupId: string,
-        instanceConfig?: InstancingConfig
+        instanceConfig?: Partial<InstanceConfig>
     ): THREE.InstancedMesh | null {
         if (!this.config.enabled || !(object instanceof THREE.Mesh)) {
             return null;
@@ -147,39 +208,16 @@ export class InstanceManager {
     }
 
     /**
-     * 更新所有实例化组
-     */
-    public update(): void {
-        const currentTime = performance.now();
-        if (currentTime - this.lastUpdateTime < this.config.updateInterval) {
-            return;
-        }
-
-        const startTime = performance.now();
-        this.instanceGroups.forEach(group => {
-            if (group.dirty) {
-                for (let i = 0; i < group.count; i++) {
-                    group.mesh.setMatrixAt(i, group.matrix[i]);
-                }
-                group.mesh.instanceMatrix.needsUpdate = true;
-                group.dirty = false;
-            }
-        });
-        this.metrics.updateTime = performance.now() - startTime;
-        this.lastUpdateTime = currentTime;
-    }
-
-    /**
      * 创建实例化组
      */
     private createInstanceGroup(
         template: THREE.Mesh,
         groupId: string,
-        config?: InstancingConfig
+        config?: Partial<InstanceConfig>
     ): InstanceGroup {
         const initialCount = Math.min(
-            config?.initialCount || this.config.batchSize,
-            this.config.maxInstanceCount
+            config?.initialCount ?? this.config.batchSize!,
+            this.config.maxInstanceCount!
         );
 
         // 确保使用单个材质
@@ -203,29 +241,6 @@ export class InstanceManager {
             objects: new Map(),
             matrix: new Array(initialCount).fill(null).map(() => new THREE.Matrix4()),
             dirty: false
-        };
-    }
-
-
-
-    /**
-     * 更新性能指标
-     */
-    private updateMetrics(): void {
-        let totalInstances = 0;
-        let totalMemory = 0;
-
-        this.instanceGroups.forEach(group => {
-            totalInstances += group.count;
-            totalMemory += this.calculateGroupMemory(group);
-        });
-
-        this.metrics = {
-            instanceCount: totalInstances,
-            batchCount: this.instanceGroups.size,
-            memoryUsage: totalMemory,
-            updateTime: this.metrics.updateTime,
-            drawCalls: this.instanceGroups.size
         };
     }
 
@@ -284,11 +299,14 @@ export class InstanceManager {
         });
         this.instanceGroups.clear();
         this.metrics = {
+            ...this.metrics,
             instanceCount: 0,
             batchCount: 0,
             memoryUsage: 0,
             updateTime: 0,
-            drawCalls: 0
+            drawCalls: 0,
+            operationCount: this.metrics.operationCount,
+            lastUpdateTime: Date.now()
         };
     }
 
@@ -349,7 +367,7 @@ export class InstanceManager {
     /**
      * 更新实例组配置
      */
-    public updateGroupConfig(groupId: string, config: Partial<InstancingConfig>): void {
+    public updateGroupConfig(groupId: string, config: Partial<InstanceConfig>): void {
         const group = this.instanceGroups.get(groupId);
         if (!group) return;
 
@@ -402,9 +420,10 @@ export class InstanceManager {
      * 扩展实例化组容量到指定大小
      */
     private expandInstanceGroup(group: InstanceGroup, targetCount?: number): void {
+        const maxCount = this.config.maxInstanceCount!;
         const newMaxCount = targetCount ? 
-            Math.min(targetCount, this.config.maxInstanceCount) :
-            Math.min(group.maxCount * 2, this.config.maxInstanceCount);
+            Math.min(targetCount, maxCount) :
+            Math.min(group.maxCount * 2, maxCount);
 
         if (newMaxCount <= group.maxCount) return;
 
@@ -466,7 +485,7 @@ export class InstanceManager {
             group.mesh.count = 0;
         }
 
-        // 清除���数据
+        // 清除组数据
         group.objects.clear();
         group.count = 0;
         this.instanceGroups.delete(groupId);

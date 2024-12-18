@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EventEmitter } from 'events';
 
 // 移除循环依赖，改用类型声明
 type MapboxThreeType = any; // 避免循环依赖
@@ -40,7 +41,7 @@ export interface ThreeRendererConfig {
   antialias?: boolean;
   /** 透明度 - 默认 true */
   alpha?: boolean;
-  /** 是否保留��缓冲 - 默认 false */
+  /** 是否保留 - 默认 false */
   preserveDrawingBuffer?: boolean;
   /** 阴影贴图配置 */
   shadowMap?: {
@@ -138,104 +139,150 @@ export interface ThreeConfig {
   lights?: ThreeLightsConfig;
   /** 渲染模式 - 可选，默认 'auto' */
   renderMode?: 'auto' | 'manual' | 'ondemand';
-  /** 自动渲染 - 可选，默认 true */
+  /** 自动渲染 - 可选，默 true */
   autoRender?: boolean;
 }
 
 /**
- * 例��配置接口 - 所有字段可选，有默认值
+ * 基础配置接口 - 所有字段可选，有默认值
  */
-export interface InstancingConfig {
-  /** 是否启用 - 默认 false */
-  enabled?: boolean;
-  /** 实例化阈值 - 默认 100 */
-  threshold?: number;
-  /** 批处理大小 - 默认 100 */
-  batchSize?: number;
-  /** 动态批处理 - 默认 true */
-  dynamicBatching?: boolean;
-  /** 更新间隔(ms) - 默认 16 */
-  updateInterval?: number;
-  /** 最大实例数 - 默认 10000 */
-  maxInstanceCount?: number;
-  /** 初始实例数 - 默认 1000 */
-  initialCount?: number;
-  /** 是否裁剪 - 默认 true */
-  frustumCulled?: boolean;
-  /** 是否投射阴影 - 默认 true */
-  castShadow?: boolean;
-  /** 是否接收阴影 - 默认 true */
-  receiveShadow?: boolean;
+export interface BaseConfig {
+    enabled?: boolean;              // 是否启用 - 默认 false
+    updateInterval?: number;        // 更新间隔(ms) - 默认 16
+    autoCleanup?: boolean;         // 是否自动清理 - 默认 true
+    cleanupInterval?: number;      // 清理间隔(ms) - 默认 60000
+    warningThreshold?: number;     // 警告阈值(0-1) - 默认 0.7
+    criticalThreshold?: number;    // 临界阈值(0-1) - 默认 0.9
+    maxSize?: number;              // 最大大小 - 默认 1000
+    debugMode?: boolean;           // 调试模式 - 默认 false
 }
 
 /**
- * LOD级别接口
+ * 基础指标接口 - 所有字段可选
  */
-export interface LodLevel {
-  /** 距离阈值 */
-  distance: number;
-  /** 细节级别或替代模型 */
-  detail: number | THREE.Mesh;
+export interface BaseMetrics {
+    operationCount?: number;       // 操作计数
+    lastUpdateTime?: number;       // 最后更新时间
+    memoryUsage?: number;         // 内存使用量
+}
+
+/**
+ * 实例化配置接口 - 所有字段可选，有默认值
+ */
+export interface InstanceConfig extends BaseConfig {
+    threshold?: number;           // 启用实例化的阈值 - 默认 100
+    maxInstanceCount?: number;    // 每个组的最大实例数 - 默认 10000
+    batchSize?: number;          // 批处理大小 - 默认 100
+    dynamicBatching?: boolean;   // 是否启用动态批处理 - 默认 true
+    mergeGeometry?: boolean;     // 是否合体 - 默认 true
+    shareBuffers?: boolean;      // 是否共享缓冲区 - 默认 true
+    initialCount?: number;       // 初始实例数 - 默认 1000
+    frustumCulled?: boolean;     // 是否进行视锥��裁剪 - 默认 true
+    castShadow?: boolean;        // 是否投射阴影 - 默认 true
+    receiveShadow?: boolean;     // 是否接收阴影 - 默认 true
+}
+
+/**
+ * 实例化指标接口 - 所有字段可选
+ */
+export interface InstanceMetrics extends BaseMetrics {
+    instanceCount?: number;      // 实例数量
+    batchCount?: number;        // 批次数量
+    drawCalls?: number;         // 绘制调用次数
+    updateTime?: number;        // 更新时间
 }
 
 /**
  * LOD配置接口 - 所有字段可选，有默认值
  */
-export interface LodConfig {
-  /** 是否启用 - 默认 false */
-  enabled?: boolean;
-  /** 动态调整 - 默认 false */
-  dynamicAdjustment?: boolean;
-  /** 过渡时间(ms) - 默认 300 */
-  transitionDuration?: number;
-  /** 性能目标(fps) - 默认 60 */
-  performanceTarget?: number;
-  /** 更新间隔(ms) - 默认 16 */
-  updateInterval?: number;
-  /** LOD级别配置 - 默认 [{ distance: 0, detail: 1 }, { distance: 1000, detail: 0.5 }, { distance: 2000, detail: 0.1 }] */
-  levels?: LodLevel[];
+export interface LODConfig extends BaseConfig {
+    levels?: Array<{              // LOD级别配置
+        distance: number;         // 距离阈值
+        detail: number;          // 细节级别 (0-1)
+    }>;
+    dynamicAdjustment?: boolean;  // 是否动态调整 - 默认 false
+    performanceTarget?: number;   // 性能目标（FPS）- 默认 60
+    transitionDuration?: number;  // 过渡时间（毫秒）- 默认 300
+}
+
+/**
+ * LOD指标接口 - 所有字段可选
+ */
+export interface LODMetrics extends BaseMetrics {
+    activeObjects?: number;       // 活跃对象数
+    totalLevels?: number;        // 总级别数
+    averageDistance?: number;    // 平均距离
 }
 
 /**
  * 对象池配置接口 - 所有字段可选，有默认值
  */
-export interface ObjectPoolConfig {
-  /** 是否启用 - 默认 false */
-  enabled?: boolean;
-  /** 默认池大小 - 默认 1000 */
-  defaultPoolSize?: number;
-  /** 最大池大小 - 默认 10000 */
-  maxPoolSize?: number;
-  /** 清理间隔(ms) - 默认 60000 */
-  cleanupInterval?: number;
-  /** 预测性缩放 - 默认 false */
-  predictiveScaling?: boolean;
-  /** 最小空闲时间(ms) - 默认 30000 */
-  minIdleTime?: number;
-  /** 最大空闲时间(ms) - 默认 300000 */
-  maxIdleTime?: number;
-  /** 预热数量 - 默认 0 */
-  warmupCount?: number;
+export interface ObjectPoolConfig extends BaseConfig {
+    maxPoolSize?: number;          // 每个池的最大对象数量 - 默认 10000
+    defaultPoolSize?: number;      // 默认池大小 - 默认 1000
+    shrinkThreshold?: number;      // 收缩阈值 (0-1) - 默认 0.3
+    prewarmPools?: boolean;        // 是否预热池 - 默认 false
+    predictiveScaling?: boolean;   // 是否启用预测性缩放 - 默认 false
+    minIdleTime?: number;          // 最小空闲时间(ms) - 默认 30000
+    maxIdleTime?: number;          // 最大空闲时间(ms) - 默认 300000
+    warmupCount?: number;          // 预热数量 - 默认 0
 }
 
 /**
- * 内存管理器配置接口 - 所有字段可选，有默认值
+ * 对象池指标接口 - 所有字段可选
  */
-export interface MemoryManagerConfig {
-  /** 是否启用 - 默认 false */
-  enabled?: boolean;
-  /** 最大缓存大小(MB) - 默认 100 */
-  maxCacheSize?: number;
-  /** 清理间隔(ms) - 默认 60000 */
-  cleanupInterval?: number;
-  /** 资源释放策略 - 默认 'lru' */
-  disposalStrategy?: 'lru' | 'lfu';
-  /** 是否自动清理 - 默认 true */
-  autoCleanup?: boolean;
-  /** 内存警告阈值(MB) - 默认 50 */
-  warningThreshold?: number;
-  /** 内存临界阈值(MB) - 默认 100 */
-  criticalThreshold?: number;
+export interface ObjectPoolMetrics extends BaseMetrics {
+    totalObjects?: number;         // 总对象数
+    activeObjects?: number;        // 活跃对象数
+    inactiveObjects?: number;      // 非活跃对象数
+    hitRatio?: number;            // 命中率
+}
+
+/**
+ * 内存管理配置接口 - 所有字段可选，有默认值
+ */
+export interface MemoryConfig extends BaseConfig {
+    maxTextureSize?: number;     // 最大纹理大小 - 默认 2048
+    maxGeometryVertices?: number;// 最大几何体顶点数 - 默认 65536
+    maxCachedGeometries?: number;// 最大缓存几何体数 - 默认 1000
+    maxCachedTextures?: number;  // 最大缓存纹理数 - 默认 100
+    maxCachedMaterials?: number; // 最大缓存材质数 - 默认 100
+    maxCacheSize?: number;       // 最大缓存大小(MB) - 默认 100
+    disposalStrategy?: 'lru' | 'lfu'; // 资源释放策略 - 默认 'lru'
+}
+
+/**
+ * 内存管理指标接口 - 所有字段可选
+ */
+export interface MemoryMetrics extends BaseMetrics {
+    geometries?: number;         // 几何体数量
+    textures?: number;          // 纹理数量
+    materials?: number;         // 材质数量
+    programs?: number;          // 着色器程序数量
+    totalMemory?: number;       // 总内存使用
+    maxMemory?: number;         // 最大内存限制
+}
+
+/**
+ * 扩展的Three.js对象接口
+ */
+export interface ExtendedObject3D extends THREE.Object3D {
+    _mapboxThree?: MapboxThreeType;
+    geometry?: THREE.BufferGeometry;
+    material?: THREE.Material | THREE.Material[];
+    [key: string]: any;
+}
+
+/**
+ * 完整配置接口 - 只保留必需的初始化字段
+ */
+export interface MapboxThreeConfig {
+    /** Mapbox配置 - 必填 */
+    mapbox: MapboxConfig;
+    /** Three.js配置 - 选，有默认值 */
+    three?: ThreeConfig;
+    /** 优化配置 - 可选，有默认值 */
+    optimization?: OptimizationConfig;
 }
 
 /**
@@ -243,33 +290,14 @@ export interface MemoryManagerConfig {
  */
 export interface OptimizationConfig {
   /** 实例化配置 */
-  instancing?: InstancingConfig;
+  instancing?: InstanceConfig;
   /** LOD配置 */
-  lod?: LodConfig;
+  lod?: LODConfig;
   /** 对象池配置 */
   objectPool?: ObjectPoolConfig;
   /** 内存管理器配置 */
-  memoryManager?: MemoryManagerConfig;
+  memoryManager?: MemoryConfig;
 }
-
-/**
- * 完整配置接口
- */
-export interface MapboxThreeConfig {
-  /** Mapbox配置 - 必填 */
-  mapbox: MapboxConfig;
-  /** Three.js配置 - 可选，有默认值 */
-  three?: ThreeConfig;
-  /** 优化配置 - 可选，有默认值 */
-  optimization?: OptimizationConfig;
-}
-
-/**
- * 深度部分类型
- */
-export type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
 
 /**
  * 用户数据接口
@@ -288,31 +316,19 @@ export interface UserData {
 }
 
 /**
- * 扩展的Three.js对象接口
- */
-export interface ExtendedObject3D extends THREE.Object3D {
-  /** MapboxThree实例引用 */
-  _mapboxThree?: MapboxThreeType;
-  /** 几何体 */
-  geometry?: THREE.BufferGeometry;
-  /** 材质 */
-  material?: THREE.Material | THREE.Material[];
-  /** 设置坐标方法 */
-  setCoords?: (coords: Coordinates) => void;
-  /** 获取坐标方法 */
-  getCoords?: () => Coordinates;
-  /** 设置高度方法 */
-  setAltitude?: (altitude: number) => void;
-  /** 获取高度方法 */
-  getAltitude?: () => number;
-  /** 用户数据 */
-  userData: UserData;
-}
-
-/**
  * 基础类型
  */
 export type Coordinates = [number, number] | [number, number, number];
+
+/**
+ * LOD级别接口
+ */
+export interface LODLevel {
+    /** 距离阈值 */
+    distance: number;
+    /** 细节级别 */
+    detail: number;
+}
 
 /**
  * 自定义配置接口
@@ -323,7 +339,7 @@ export interface CustomConfig {
     /** 是否禁用LOD */
     disableLOD?: boolean;
     /** LOD级别 */
-    lodLevels?: LodLevel[];
+    lodLevels?: LODLevel[];
   };
   /** 坐标配置 */
   coordinates?: Coordinates;
@@ -342,7 +358,11 @@ export interface MemoryStats {
   /** shader程序数量 */
   programs?: number;
   /** 总内存占用(bytes) */
-  totalMemory: number;
+  totalJSHeapSize: number;
+  /** 已使用内存(bytes) */
+  usedJSHeapSize: number;
+  /** 内存限制(bytes) */
+  jsHeapSizeLimit: number;
   /** 缓存资源数量 */
   cachedResources?: number;
   /** 上次清理时间 */
@@ -353,7 +373,7 @@ export interface MemoryStats {
  * 资源使用记录接口
  */
 export interface ResourceUsage {
-  /** 最后���用时间 */
+  /** 最后用时间 */
   lastUsed: number;
   /** 使用次数 */
   useCount: number;
@@ -411,3 +431,60 @@ export interface AnimationState {
  * 缓动类型
  */
 export type EasingType = 'Linear' | 'QuadIn' | 'QuadOut' | 'QuadInOut' | 'ElasticOut';
+
+/**
+ * 优化事件枚举
+ */
+export enum OptimizationEvent {
+    INITIALIZED = 'initialized',
+    OBJECT_OPTIMIZED = 'objectOptimized',
+    ERROR = 'error'
+}
+
+/**
+ * 实例化管理器配置接口 - 继承自实例化配置
+ */
+export interface InstanceManagerConfig extends InstanceConfig {
+    // 继承所有 InstanceConfig 的属性
+}
+
+/**
+ * 基础策略类
+ */
+export abstract class BaseStrategy<TConfig extends BaseConfig = BaseConfig> extends EventEmitter {
+    protected config: TConfig;
+    protected isEnabled: boolean = true;
+    protected metrics: BaseMetrics = {
+        operationCount: 0,
+        lastUpdateTime: 0,
+        memoryUsage: 0
+    };
+
+    constructor(config: TConfig) {
+        super();
+        this.config = config;
+    }
+
+    protected abstract validateConfig(config: Partial<TConfig>): Required<TConfig>;
+    protected abstract onInitialize(): void;
+    protected abstract onUpdate(params: any): void;
+    protected abstract onDispose(): void;
+    protected abstract onClear(): void;
+    protected abstract updateMetrics(): void;
+
+    protected disposeResources(resources: {
+        geometries?: THREE.BufferGeometry[];
+        materials?: THREE.Material[];
+        textures?: THREE.Texture[];
+    }): void {
+        if (resources.geometries) {
+            resources.geometries.forEach(geometry => geometry.dispose());
+        }
+        if (resources.materials) {
+            resources.materials.forEach(material => material.dispose());
+        }
+        if (resources.textures) {
+            resources.textures.forEach(texture => texture.dispose());
+        }
+    }
+}

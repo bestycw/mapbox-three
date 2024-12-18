@@ -1,158 +1,193 @@
 import * as THREE from 'three';
-import { LODManager } from '../optimization/LODManager';
-import { ObjectPoolManager } from '../optimization/ObjectPoolManager';
-import { InstanceManager } from '../optimization/InstanceManager';
-
+import { EventEmitter } from 'events';
 import { 
-    OptimizationConfig, 
-    LodLevel, 
-    InstancingConfig,
-    ExtendedObject3D, 
-    MemoryStats
+    ExtendedObject3D,
+    OptimizationConfig,
+    OptimizationEvent,
+    OptimizationOptions,
+    PerformanceMetrics
 } from '../config/types';
+import { BaseStrategy } from '../optimization/BaseStrategy';
+import { LODManager } from '../optimization/LODManager';
+import { InstanceManager } from '../optimization/InstanceManager';
 import { MemoryManager } from '../optimization/MemoryManager';
+import { ObjectPoolManager } from '../optimization/ObjectPoolManager';
+import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 
 /**
- * 优化管理器 - 统一管理各种优化策略
+ * OptimizationManager - A modular and extensible optimization system
+ * 
+ * Features:
+ * - Plugin-based architecture for easy extension
+ * - Event-driven communication
+ * - Unified configuration management
+ * - Performance monitoring
+ * - Error handling
  */
-export class OptimizationManager {
-    private static instance: OptimizationManager;   
-    private lodManager!: LODManager;
-    private objectPoolManager!: ObjectPoolManager;
-    private instanceManager!: InstanceManager;
-    private memoryManager!: MemoryManager;
+export class OptimizationManager extends EventEmitter {
+    private static instance: OptimizationManager;
+    private strategies: Map<string, BaseStrategy<any>>;
+    private config: Required<OptimizationConfig>;
+    private renderer: THREE.WebGLRenderer;
+    private isEnabled: boolean;
+    private performanceMonitor: PerformanceMonitor;
 
-    private constructor(renderer: THREE.WebGLRenderer, config?: OptimizationConfig) {
-        this.initializeManagers(renderer, config || {});
+    private constructor(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>) {
+        super();
+        this.renderer = renderer;
+        this.strategies = new Map();
+        this.config = config as Required<OptimizationConfig>; 
+        this.isEnabled = true;
+        this.performanceMonitor = new PerformanceMonitor();
+        
+        this.initialize();
     }
 
-    private initializeManagers(renderer: THREE.WebGLRenderer, config: OptimizationConfig): void {
-        this.lodManager = new LODManager(config.lod || {});
-        this.objectPoolManager = new ObjectPoolManager(config.objectPool || {});
-        this.instanceManager = InstanceManager.getInstance(config.instancing || {});
-        this.memoryManager = MemoryManager.getInstance(renderer, config.memoryManager || {});
-        
-        if (this.memoryManager) {
-            this.memoryManager.setWarningCallback((stats) => {
-                console.warn('Memory usage warning:', stats);
-            });
-            
-            this.memoryManager.setCriticalCallback((stats) => {
-                console.error('Critical memory usage:', stats);
-            });
+    /**
+     * Initialize all optimization strategies
+     */
+    private initialize(): void {
+        try {
+            if (this.config.lod) {
+                this.registerStrategy('lod', new LODManager(this.config.lod));
+            }
+            if (this.config.instancing) {
+                this.registerStrategy('instancing', new InstanceManager(this.config.instancing));
+            }
+            if (this.config.objectPool) {
+                this.registerStrategy('objectPool', new ObjectPoolManager(this.config.objectPool));
+            }
+            if (this.config.memoryManager) {
+                this.registerStrategy('memory', new MemoryManager(this.renderer, this.config.memoryManager));
+            }
+
+            this.emit(OptimizationEvent.INITIALIZED);
+        } catch (error) {
+            this.handleError('Initialization failed', error);
         }
     }
 
-    public static getInstance(renderer: THREE.WebGLRenderer, config?: OptimizationConfig): OptimizationManager {
+    /**
+     * Register a new optimization strategy
+     */
+    public registerStrategy(name: string, strategy: BaseStrategy<any>): void {
+        if (this.strategies.has(name)) {
+            this.handleError(`Strategy ${name} already exists`);
+            return;
+        }
+        
+        this.strategies.set(name, strategy);
+        strategy.initialize();
+    }
+
+    /**
+     * High-level API for object optimization
+     */
+    public optimize(object: ExtendedObject3D, options: Partial<OptimizationOptions> = {}): void {
+        try {
+            if (!this.isEnabled) return;
+
+            const metrics = this.performanceMonitor.startOperation('optimize');
+
+            if (options.lod) {
+                const lodStrategy = this.getStrategy('lod') as LODManager;
+                lodStrategy?.setupLOD(object, options.lod);
+            }
+            if (options.instancing) {
+                const instanceStrategy = this.getStrategy('instancing') as InstanceManager;
+                instanceStrategy?.update({ object, ...options.instancing });
+            }
+
+            this.performanceMonitor.endOperation(metrics);
+            this.emit(OptimizationEvent.OBJECT_OPTIMIZED, { object, options });
+        } catch (error) {
+            this.handleError('Optimization failed', error);
+        }
+    }
+
+    /**
+     * Update all active optimizations
+     */
+    public update(camera: THREE.Camera): void {
+        if (!this.isEnabled) return;
+
+        const metrics = this.performanceMonitor.startOperation('update');
+        
+        this.strategies.forEach(strategy => {
+            strategy.update({ camera });
+        });
+
+        this.performanceMonitor.endOperation(metrics);
+    }
+
+    /**
+     * Get performance metrics
+     */
+    public getMetrics(): PerformanceMetrics {
+        return {
+            memory: this.getStrategy('memory')?.getMetrics(),
+            instances: this.getStrategy('instancing')?.getMetrics(),
+            performance: this.performanceMonitor.getMetrics()
+        };
+    }
+
+    /**
+     * Error handling
+     */
+    private handleError(message: string, error?: any): void {
+        console.error(`[OptimizationManager] ${message}`, error);
+        this.emit(OptimizationEvent.ERROR, { message, error });
+        // if (this.config.debugMode) {
+        //     console.debug('[OptimizationManager] Error details:', error);
+        // }
+    }
+
+    /**
+     * Cleanup and dispose
+     */
+    public dispose(): void {
+        this.strategies.forEach(strategy => strategy.dispose());
+        this.strategies.clear();
+        this.removeAllListeners();
+        this.isEnabled = false;
+    }
+
+    // Singleton instance management
+    public static getInstance(renderer: THREE.WebGLRenderer, config?: Partial<OptimizationConfig>): OptimizationManager {
         if (!OptimizationManager.instance) {
             OptimizationManager.instance = new OptimizationManager(renderer, config);
         }
         return OptimizationManager.instance;
     }
 
-    // === LOD 管理 ===
-    public setupLOD(object: ExtendedObject3D, levels?: LodLevel[]): ExtendedObject3D {
-        return this.lodManager.setupLOD(object, levels);
+    private getStrategy<T extends BaseStrategy<any>>(name: string): T | undefined {
+        return this.strategies.get(name) as T | undefined;
     }
+}
 
-    public removeLOD(object: ExtendedObject3D): void {
-        this.lodManager.remove(object);
-    }
+// Example usage:
+/*
+const manager = OptimizationManager.getInstance(renderer);
 
-    public updateLOD(camera: THREE.Camera): void {
-        this.lodManager.update(camera);
+// Simple usage
+manager.optimize(object, {
+    lod: {
+        levels: [
+            { distance: 0, geometry: highDetailGeometry },
+            { distance: 100, geometry: lowDetailGeometry }
+        ]
+    },
+    instancing: {
+        groupId: 'trees',
+        maxInstances: 1000
     }
+});
 
-    // === 实例化管理 ===
-    public addInstance(
-        object: ExtendedObject3D,
-        groupId: string,
-        config?: Partial<InstancingConfig>
-    ): THREE.InstancedMesh | null {
-        return this.instanceManager.addInstance(object, groupId, config);
-    }
+// Event handling
+manager.on(OptimizationEvent.OBJECT_OPTIMIZED, (data) => {
+    console.log('Object optimized:', data);
+});
 
-    public removeInstance(object: ExtendedObject3D, groupId: string): void {
-        this.instanceManager.removeInstance(object, groupId);
-    }
-
-    public updateInstance(object: ExtendedObject3D, groupId: string): void {
-        this.instanceManager.updateInstance(object, groupId);
-    }
-
-    public getInstanceMetrics() {
-        return this.instanceManager.getMetrics();
-    }
-
-    public clearInstanceGroup(groupId: string): void {
-        this.instanceManager.clearInstances(groupId);
-    }
-
-    public updateInstanceConfig(groupId: string, config: Partial<InstancingConfig>): void {
-        this.instanceManager.updateGroupConfig(groupId, config);
-    }
-
-    public getGroupObjects(groupId: string): ExtendedObject3D[] {
-        return this.instanceManager.getGroupObjects(groupId);
-    }
-
-    public hasInstance(object: ExtendedObject3D, groupId: string): boolean {
-        return this.instanceManager.hasInstance(object, groupId);
-    }
-
-    public getObjectGroupId(object: ExtendedObject3D): string | null {
-        return this.instanceManager.getObjectGroupId(object);
-    }
-
-    // === 对象池管理 ===
-    public getObjectFromPool<T extends ExtendedObject3D>(
-        key: string,
-        factory: () => T,
-        reset?: (obj: T) => void
-    ): T {
-        return this.objectPoolManager.acquire(key, factory, reset);
-    }
-
-    public releaseObjectToPool(type: string, object: ExtendedObject3D): void {
-        this.objectPoolManager.release(type, object);
-    }
-
-    public clearUpPoolObjects(): void {
-        this.objectPoolManager.clearUp();
-    }
-
-    // === 便捷访问方法 ===
-    public getLODManager(): LODManager {
-        return this.lodManager;
-    }
-
-    public getInstanceManager(): InstanceManager {
-        return this.instanceManager;
-    }
-
-    public getObjectPoolManager(): ObjectPoolManager {
-        return this.objectPoolManager;
-    }
-
-    public dispose(): void {
-        this.lodManager.dispose();
-        this.instanceManager.dispose();
-        this.objectPoolManager.dispose();
-        if (this.memoryManager) {
-            this.memoryManager.dispose();
-        }
-    }
-
-    /**
-     * 获取内存统计信息
-     */
-    public getMemoryStats(): MemoryStats {
-        return this.memoryManager.getMemoryStats();
-    }
-    
-    public memoryCleanup(): void {
-        if (this.memoryManager) {
-            this.memoryManager.cleanup();
-        }
-    }
-} 
+// Performance monitoring
+const metrics = manager.getMetrics();
+*/ 

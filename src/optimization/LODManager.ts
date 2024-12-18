@@ -1,38 +1,138 @@
-import { defaultConfig, ExtendedObject3D, LodConfig } from '../config';
 import * as THREE from 'three';
-// import { ExtendedObject3D } from '../types';
-// import { LODConfig } from '../types/optimization';
-// import { MapboxThree } from 'main';
+import { BaseStrategy } from './BaseStrategy';
+import { BaseConfig, ExtendedObject3D, LODMetrics } from '../config/types';
+import { defaultConfig } from '../config';
+// import { LODMetrics } from '../config/types';
+
+/**
+ * LOD管理器配置接口
+ */
+export interface LODConfig extends BaseConfig {
+    levels: Array<{ distance: number; detail: number }>;
+    dynamicAdjustment: boolean;
+    performanceTarget: number;
+    transitionDuration: number;
+    maxCacheSize: number;
+}
 
 /**
  * LOD管理器 - 处理物体的细节层次
  */
-export class LODManager {
+export class LODManager extends BaseStrategy<LODConfig> {
+    private static instance: LODManager;
     private lodObjects: Map<string, THREE.LOD> = new Map();
     private geometryCache: Map<string, THREE.BufferGeometry> = new Map();
-    private config:LodConfig;
+    private maxCacheSize: number = 1000;
     private beforeLODHook?: (object: ExtendedObject3D, distance: number) => void;
     private afterLODHook?: (object: ExtendedObject3D, distance: number) => void;
-    private maxCacheSize: number = 100; // 最大缓存大小
-    private frameTime: number = 0;
     private lastFrameTime: number = 0;
+    private frameTime: number = 0;
     private transitionObjects: Map<string, {
         startTime: number;
         fromLevel: number;
         toLevel: number;
         duration: number;
     }> = new Map();
-    // private mapboxThree: MapboxThree;
-    
-    constructor(config?: LodConfig) {
-        this.config = {
-            ...defaultConfig.optimization!.lod!,
+    protected metrics: Required<LODMetrics> = {
+        operationCount: 0,
+        lastUpdateTime: 0,
+        memoryUsage: 0,
+        activeObjects: 0,
+        totalLevels: 0,
+        averageDistance: 0
+    };
+
+    public constructor(config: Partial<LODConfig>) {
+        super(config as LODConfig);
+    }
+
+    public static getInstance(config: Partial<LODConfig>): LODManager {
+        if (!LODManager.instance) {
+            LODManager.instance = new LODManager(config);
+        }
+        return LODManager.instance;
+    }
+
+    protected validateConfig(config: Partial<LODConfig>): Required<LODConfig> {
+        const defaultLOD = defaultConfig.optimization?.lod ?? {};
+        return {
+            ...defaultLOD,
             ...config
-        } as Required<LodConfig>;
+        } as Required<LODConfig>;
+    }
+    protected onInitialize(): void {
+        // 初始化时不需要特殊处理
+    }
+
+    protected onUpdate(params: { camera: THREE.Camera }): void {
+        if (!this.isEnabled) return;
+
+        const { camera } = params;
+        this.adjustLODLevels();
+
+        this.lodObjects.forEach((lod) => {
+            const distance = camera.position.distanceTo(lod.position);
+            
+            if (this.beforeLODHook) {
+                this.beforeLODHook(lod, distance);
+            }
+
+            const currentLevel = lod.getCurrentLevel();
+            this._updateOnDistance(lod, distance);
+            const newLevel = lod.getCurrentLevel();
+
+            if (currentLevel !== newLevel) {
+                this.handleTransition(lod, currentLevel, newLevel);
+            }
+
+            if (this.afterLODHook) {
+                this.afterLODHook(lod, distance);
+            }
+        });
+    }
+
+    protected onDispose(): void {
+        this.clearCache();
+        this.lodObjects.forEach(lod => {
+            lod.traverse(child => {
+                if (child instanceof THREE.Mesh) {
+                    child.geometry.dispose();
+                    if (child.material instanceof THREE.Material) {
+                        child.material.dispose();
+                    }
+                }
+            });
+        });
+        this.lodObjects.clear();
+    }
+
+    protected onClear(): void {
+        this.clearCache();
+        this.lodObjects.clear();
+    }
+
+    protected updateMetrics(): void {
+        let totalMemory = 0;
+        let totalLevels = 0;
+
+        this.geometryCache.forEach(geometry => {
+            totalMemory += this.estimateGeometrySize(geometry);
+        });
+
+        this.lodObjects.forEach(lod => {
+            totalLevels += lod.levels.length;
+        });
+
+        this.metrics = {
+            ...this.metrics,
+            operationCount: this.metrics.operationCount + 1,
+            lastUpdateTime: Date.now(),
+            memoryUsage: totalMemory
+        };
     }
 
     /**
-     * 获取或创建简化的几何体
+     * 获取或创建简的几何体
      */
     private getSimplifiedGeometry(originalGeometry: THREE.BufferGeometry, detail: number): THREE.BufferGeometry {
         const uuid = originalGeometry.uuid || THREE.MathUtils.generateUUID();
@@ -251,7 +351,7 @@ export class LODManager {
         const newIndices: number[] = [];
         const oldToNewIndex = new Map();
 
-        // 只保留选中的顶点
+        // 只保留选���的顶点
         selectedVertices.forEach(oldIndex => {
             const newIndex = newPositions.length / 3;
             oldToNewIndex.set(oldIndex, newIndex);
@@ -305,36 +405,6 @@ export class LODManager {
         return simplified;
     }
 
-    /**
-     * 更新LOD对象
-     */
-    public update(camera:THREE.Camera): void {
-        if (!this.config.enabled) return;
-
-        // 动态调整LOD级别
-        this.adjustLODLevels();
-
-        this.lodObjects.forEach((lod) => {
-            const distance = camera.position.distanceTo(lod.position);
-            
-            if (this.beforeLODHook) {
-                this.beforeLODHook(lod, distance);
-            }
-
-            const currentLevel = lod.getCurrentLevel();
-            this._updateOnDistance(lod, distance);
-            const newLevel = lod.getCurrentLevel();
-
-            // 处理过渡效果
-            if (currentLevel !== newLevel) {
-                this.handleTransition(lod, currentLevel, newLevel);
-            }
-
-            if (this.afterLODHook) {
-                this.afterLODHook(lod, distance);
-            }
-        });
-    }
     _updateOnDistance( lod: THREE.LOD, distance:number ):void {
         const levels = lod.levels;
         // console.log(levels)
@@ -366,7 +436,7 @@ export class LODManager {
                 }
             }
      
-            // 记录当前层级
+            // 记录前层级
             (lod as any)._currentLevel = i - 1;
             // console.log(i,l)
             // 隐藏剩余的层级
@@ -530,5 +600,16 @@ export class LODManager {
                 toObject.material.opacity = progress;
             }
         }
+    }
+
+    /**
+     * 估算几何体大小
+     */
+    private estimateGeometrySize(geometry: THREE.BufferGeometry): number {
+        let size = 0;
+        for (const attribute of Object.values(geometry.attributes)) {
+            size += attribute.array.byteLength;
+        }
+        return size;
     }
 } 
