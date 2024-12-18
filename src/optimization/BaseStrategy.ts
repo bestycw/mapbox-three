@@ -1,5 +1,7 @@
-import { EventEmitter } from 'events';
+// import { EventEmitter } from 'events';
+import { EventEmitter } from '../utils/EventEmitter';
 import { BaseConfig, BaseMetrics } from '../config/types';
+import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 
 /**
  * 基础优化策略类
@@ -8,10 +10,12 @@ export abstract class BaseStrategy<TConfig extends BaseConfig> extends EventEmit
     protected config: Required<TConfig>;
     protected isEnabled: boolean = true;
     protected metrics: BaseMetrics;
+    protected performanceMonitor: PerformanceMonitor;
 
     constructor(config: TConfig) {
         super();
         this.config = this.validateConfig(config);
+        this.performanceMonitor = PerformanceMonitor.getInstance();
         this.metrics = {
             operationCount: 0,
             lastUpdateTime: 0,
@@ -28,8 +32,13 @@ export abstract class BaseStrategy<TConfig extends BaseConfig> extends EventEmit
      * 初始化策略
      */
     public initialize(): void {
-        if (this.config.enabled) {
-            this.onInitialize();
+        const metrics = this.performanceMonitor.startOperation(`${this.constructor.name}_initialize`);
+        try {
+            if (this.config.enabled) {
+                this.onInitialize();
+            }
+        } finally {
+            this.performanceMonitor.endOperation(metrics);
         }
     }
 
@@ -38,30 +47,46 @@ export abstract class BaseStrategy<TConfig extends BaseConfig> extends EventEmit
      */
     public update(params: any): void {
         if (!this.isEnabled || !this.config.enabled) return;
-        this.onUpdate(params);
-        this.updateMetrics();
+        
+        const metrics = this.performanceMonitor.startOperation(`${this.constructor.name}_update`);
+        try {
+            this.onUpdate(params);
+            this.updateMetrics();
+        } finally {
+            this.performanceMonitor.endOperation(metrics);
+        }
     }
 
     /**
      * 清理资源
      */
     public dispose(): void {
-        this.onDispose();
-        this.removeAllListeners();
+        const metrics = this.performanceMonitor.startOperation(`${this.constructor.name}_dispose`);
+        try {
+            this.onDispose();
+            this.removeAllListeners();
+        } finally {
+            this.performanceMonitor.endOperation(metrics);
+        }
     }
 
     /**
      * 清理临时数据
      */
     public clear(): void {
-        this.onClear();
+        const metrics = this.performanceMonitor.startOperation(`${this.constructor.name}_clear`);
+        try {
+            this.onClear();
+        } finally {
+            this.performanceMonitor.endOperation(metrics);
+        }
     }
 
     /**
      * 获取性能指标
      */
     public getMetrics(): BaseMetrics {
-        return this.metrics;
+        return { ...this.metrics };
     }
 
     /**
@@ -102,5 +127,17 @@ export abstract class BaseStrategy<TConfig extends BaseConfig> extends EventEmit
     protected handleError(message: string, error?: any): void {
         console.error(`[${this.constructor.name}] ${message}`, error);
         this.emit('error', { message, error });
+    }
+
+    /**
+     * 监控操作
+     */
+    protected monitorOperation<T>(operationName: string, operation: () => T): T {
+        const metrics = this.performanceMonitor.startOperation(operationName);
+        try {
+            return operation();
+        } finally {
+            this.performanceMonitor.endOperation(metrics);
+        }
     }
 } 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EventEmitter } from 'events';
+import { EventEmitter } from '../../utils/EventEmitter';
 
 // 移除循环依赖，改用类型声明
 type MapboxThreeType = any; // 避免循环依赖
@@ -15,7 +15,7 @@ export interface MapboxConfig {
   /** 访问令牌 - 必填 */
   accessToken: string;
   /** 中心点坐标 [经度, 纬度] - 可选，默认 [-74.5, 40] */
-  center?: [number, number];
+  center: [number, number];
   /** 缩放级别 - 可选，默认 9 */
   zoom?: number;
   /** 倾斜角度 - 可选，默认 45 */
@@ -24,13 +24,6 @@ export interface MapboxConfig {
   bearing?: number;
   /** 抗锯齿 - 可选，默认 true */
   antialias?: boolean;
-  /** 地形配置 - 可选 */
-  terrain?: {
-    /** 地形数据源 - 可选，默认 'mapbox-dem' */
-    source?: string;
-    /** 地形夸张度 - 可选，默认 1 */
-    exaggeration?: number;
-  };
 }
 
 /**
@@ -151,7 +144,7 @@ export interface BaseConfig {
     updateInterval?: number;        // 更新间隔(ms) - 默认 16
     autoCleanup?: boolean;         // 是否自动清理 - 默认 true
     cleanupInterval?: number;      // 清理间隔(ms) - 默认 60000
-    warningThreshold?: number;     // 警告阈值(0-1) - 默认 0.7
+    warningThreshold?: number;     // 警告阈值(0-1) - ��认 0.7
     criticalThreshold?: number;    // 临界阈值(0-1) - 默认 0.9
     maxSize?: number;              // 最大大小 - 默认 1000
     debugMode?: boolean;           // 调试模式 - 默认 false
@@ -177,7 +170,7 @@ export interface InstanceConfig extends BaseConfig {
     mergeGeometry?: boolean;     // 是否合体 - 默认 true
     shareBuffers?: boolean;      // 是否共享缓冲区 - 默认 true
     initialCount?: number;       // 初始实例数 - 默认 1000
-    frustumCulled?: boolean;     // 是否进行视锥��裁剪 - 默认 true
+    frustumCulled?: boolean;     // 是否进行视锥裁剪 - 默认 true
     castShadow?: boolean;        // 是否投射阴影 - 默认 true
     receiveShadow?: boolean;     // 是否接收阴影 - 默认 true
 }
@@ -252,7 +245,7 @@ export interface MemoryConfig extends BaseConfig {
 }
 
 /**
- * 内存管理指标接口 - 所有字段可选
+ * ���存管理指标接口 - 所有字段可选
  */
 export interface MemoryMetrics extends BaseMetrics {
     geometries?: number;         // 几何体数量
@@ -417,7 +410,7 @@ export interface AnimationState {
     duration: number;
     /** 已经过时间 */
     elapsed: number;
-    /** 动画属性 */
+    /** 动画性 */
     properties: Record<string, { start: number; end: number; easing?: EasingType }>;
     /** 动画选项 */
     options: AnimationOptions;
@@ -442,10 +435,20 @@ export enum OptimizationEvent {
 }
 
 /**
- * 实例化管理器配置接口 - 继承自实例化配置
+ * 性能指标接口
  */
-export interface InstanceManagerConfig extends InstanceConfig {
-    // 继承所有 InstanceConfig 的属性
+export interface PerformanceMetrics {
+    memory?: MemoryMetrics;
+    instances?: {
+        count: number;
+        batches: number;
+        drawCalls: number;
+    };
+    performance: {
+        fps: number;
+        frameTime: number;
+        operations: Record<string, number>;
+    };
 }
 
 /**
@@ -487,4 +490,21 @@ export abstract class BaseStrategy<TConfig extends BaseConfig = BaseConfig> exte
             resources.textures.forEach(texture => texture.dispose());
         }
     }
+}
+
+/**
+ * 优化选项接口
+ */
+export interface OptimizationOptions {
+    lod?: {
+        levels: Array<{ distance: number; detail: number | THREE.Mesh }>;
+    };
+    instancing?: {
+        groupId: string;
+        maxInstances?: number;
+    };
+    objectPool?: {
+        key: string;
+        maxSize?: number;
+    };
 }

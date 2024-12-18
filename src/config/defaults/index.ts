@@ -15,10 +15,6 @@ export const defaultConfig: MapboxThreeConfig = {
     pitch: 45,
     bearing: 0,
     antialias: true,
-    terrain: {
-      source: 'mapbox-dem',
-      exaggeration: 1
-    }
   },
 
   // Three.js 配置

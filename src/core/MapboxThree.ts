@@ -18,7 +18,7 @@ import {
     ExtendedObject3D,
     UserData
 } from '../config/types';
-import { defaultConfig } from '../config';
+import { defaultConfig } from '../config/defaults/index';
 
 /**
  * MapboxThree - 整合 Three.js 和 Mapbox GL JS 的主类
@@ -88,20 +88,12 @@ export class MapboxThree {
     private initializeThreeJS(gl: WebGLRenderingContext): void {
         const { three, optimization } = this.config;
         this.setupRenderer(gl, three?.renderer);
-        // 初始化场景
         this.setupScene(three?.scene);
-
-        // 初始化相机
         this.setupCamera(three?.camera);
-
-        // 初始化灯光
         this.setupLights(three?.lights);
-        // 初始化优化管理器
-        this.setupManager(optimization);
-    }
-
-    private setupManager(config?: OptimizationConfig): void {
-        this.optimizationManager = OptimizationManager.getInstance(this.renderer, config);
+        
+        // Initialize optimization manager after renderer is set up
+        this.optimizationManager = OptimizationManager.getInstance(this.renderer, optimization);
     }
 
     private setupScene(config?: ThreeSceneConfig): void {
@@ -139,7 +131,7 @@ export class MapboxThree {
             this
         );
 
-        // 如果配置中启用了相机同步
+        // 如果配置���启用了相机同步
         if (config?.sync !== false) {
             this.cameraSync.enable();
         }
@@ -171,17 +163,14 @@ export class MapboxThree {
 
     public render(): void {
         try {
-            // 更新相机
-            // this.cameraSync.update();
-
-            // 更新LOD（使用更新后的相机位置）
             if (this.optimizationManager) {
-                this.optimizationManager.updateLOD(this.virtualCamera);
+                this.optimizationManager.update(this.virtualCamera || this.camera);
             }
 
             if (this.map.repaint) {
                 this.map.repaint = false;
             }
+            
             this.renderer.resetState();
             this.renderer.render(this.scene, this.camera);
 
@@ -197,46 +186,57 @@ export class MapboxThree {
     }
 
     // 公共API
-    public add(object: ExtendedObject3D, userOptions?: UserData,config?:CustomConfig): ExtendedObject3D {
-        const {lod,coordinates} = config || {};
-        // 如果启用了LOD优化且没有在userOptions中禁用，则应用LOD
-        if (this.optimizationManager && 
-            this.config.optimization?.lod?.enabled && 
-            !lod?.disableLOD) {
-            object = this.optimizationManager.setupLOD(object,lod?.lodLevels) as ExtendedObject3D;
+    public add(object: ExtendedObject3D, userOptions?: UserData, config?: CustomConfig): ExtendedObject3D {
+        const { lod, coordinates } = config || {};
+        
+        // Check both global and object-specific LOD configuration
+        if (this.optimizationManager) {
+            const globalLODEnabled = this.config.optimization?.lod?.enabled;
+            const objectLODDisabled = lod?.disableLOD;
+            // console.log(globalLODEnabled,objectLODDisabled)
+            if (globalLODEnabled && !objectLODDisabled) {
+                const levels = lod?.lodLevels || this.config.optimization?.lod?.levels;
+                // console.log(levels)
+                if (levels) {
+                   object =  this.optimizationManager.optimize(object, {
+                        lod: { levels }
+                    }) as ExtendedObject3D;
+                }
+            }
         }
+        console.log(object)
         formatObj(object, userOptions);
         
-        //如果是mesh，则添加到世界
         if (object instanceof THREE.Mesh || object instanceof THREE.Group || object instanceof THREE.LOD) {
             this.world.add(object);
-        }
-        //如果是灯光，则添加到场景
-        if (object instanceof THREE.Light) {
+        } else if (object instanceof THREE.Light) {
             this.scene.add(object);
-        }
-        //如果是相机，则添加到场景
-        if (object instanceof THREE.PerspectiveCamera) {
+        } else if (object instanceof THREE.PerspectiveCamera) {
             this.scene.add(object);
-        }
-        if(coordinates && object.setCoords){
-            object.setCoords(coordinates)
         }
 
+        if (coordinates && object.setCoords) {
+            object.setCoords(coordinates);
+        }
 
         return object;
     }
 
     public remove(object: ExtendedObject3D): this {
-        // 如果对象有LOD，移除LOD
-        if (this.optimizationManager) {
-            this.optimizationManager.removeLOD(object);
-        }
+        // if (this.optimizationManager) {
+        //     const lodStrategy = this.optimizationManager.getStrategy('lod');
+        //     if (lodStrategy) {
+        //         lodStrategy.remove(object);
+        //     }
+        // }
         this.world.remove(object);
         return this;
     }
 
     public dispose(): void {
+        if (this.optimizationManager) {
+            this.optimizationManager.dispose();
+        }
         this.renderer?.dispose();
         this.map?.remove();
     }

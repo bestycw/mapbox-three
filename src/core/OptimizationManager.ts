@@ -1,12 +1,15 @@
 import * as THREE from 'three';
-import { EventEmitter } from 'events';
+import { EventEmitter } from '../utils/EventEmitter';
 import { 
+    BaseMetrics,
     ExtendedObject3D,
     OptimizationConfig,
     OptimizationEvent,
     OptimizationOptions,
-    PerformanceMetrics
-} from '../config/types';
+    PerformanceMetrics,
+    MemoryMetrics,
+    InstanceMetrics
+} from '../config/types/index';
 import { BaseStrategy } from '../optimization/BaseStrategy';
 import { LODManager } from '../optimization/LODManager';
 import { InstanceManager } from '../optimization/InstanceManager';
@@ -38,7 +41,7 @@ export class OptimizationManager extends EventEmitter {
         this.strategies = new Map();
         this.config = config as Required<OptimizationConfig>; 
         this.isEnabled = true;
-        this.performanceMonitor = new PerformanceMonitor();
+        this.performanceMonitor = PerformanceMonitor.getInstance();
         
         this.initialize();
     }
@@ -83,15 +86,16 @@ export class OptimizationManager extends EventEmitter {
     /**
      * High-level API for object optimization
      */
-    public optimize(object: ExtendedObject3D, options: Partial<OptimizationOptions> = {}): void {
+    public optimize(object: ExtendedObject3D, options: Partial<OptimizationOptions> = {}): ExtendedObject3D | void{
+        // console.log(options)
         try {
-            if (!this.isEnabled) return;
+            if (!this.isEnabled) return object;
 
             const metrics = this.performanceMonitor.startOperation('optimize');
 
             if (options.lod) {
                 const lodStrategy = this.getStrategy('lod') as LODManager;
-                lodStrategy?.setupLOD(object, options.lod);
+                return  lodStrategy?.setupLOD(object, options.lod.levels);
             }
             if (options.instancing) {
                 const instanceStrategy = this.getStrategy('instancing') as InstanceManager;
@@ -124,10 +128,17 @@ export class OptimizationManager extends EventEmitter {
      * Get performance metrics
      */
     public getMetrics(): PerformanceMetrics {
+        const memoryManager = this.getStrategy<MemoryManager>('memory');
+        const instanceManager = this.getStrategy<InstanceManager>('instancing');
+        
         return {
-            memory: this.getStrategy('memory')?.getMetrics(),
-            instances: this.getStrategy('instancing')?.getMetrics(),
-            performance: this.performanceMonitor.getMetrics()
+            memory: memoryManager?.getMetrics(),
+            instances: instanceManager ? {
+                count: instanceManager.getMetrics().instanceCount ?? 0,
+                batches: instanceManager.getMetrics().batchCount ?? 0,
+                drawCalls: instanceManager.getMetrics().drawCalls ?? 0
+            } : undefined,
+            performance: this.performanceMonitor.getMetrics().performance
         };
     }
 
@@ -160,8 +171,82 @@ export class OptimizationManager extends EventEmitter {
         return OptimizationManager.instance;
     }
 
-    private getStrategy<T extends BaseStrategy<any>>(name: string): T | undefined {
+    public getStrategy<T extends BaseStrategy<any>>(name: string): T | undefined {
         return this.strategies.get(name) as T | undefined;
+    }
+
+    /**
+     * 获取完整性能报告
+     */
+    public getPerformanceReport(): {
+        overall: PerformanceMetrics;
+        strategies: Record<string, BaseMetrics>;
+        operations: Record<string, {
+            count: number;
+            averageTime: number;
+            lastTime: number;
+        }>;
+    } {
+        const report: {
+            overall: PerformanceMetrics;
+            strategies: Record<string, BaseMetrics>;
+            operations: Record<string, {
+                count: number;
+                averageTime: number;
+                lastTime: number;
+            }>;
+        } = {
+            overall: this.performanceMonitor.getMetrics(),
+            strategies: {},
+            operations: {}
+        };
+
+        // 收集所有策略的指标
+        this.strategies.forEach((strategy, name) => {
+            report.strategies[name] = strategy.getMetrics();
+        });
+
+        // 收集所有操作的性能数据
+        const operations = this.performanceMonitor.getHistory();
+        operations.forEach((metrics: PerformanceMetrics) => {
+            Object.entries(metrics.performance.operations).forEach(([name, value]) => {
+                report.operations[name] = {
+                    count: value,
+                    averageTime: value,
+                    lastTime: value
+                };
+            });
+        });
+
+        return report;
+    }
+
+    /**
+     * 监控性能并自动优化
+     */
+    private monitorAndOptimize(): void {
+        this.performanceMonitor.on('fpsWarning', (fps: number) => {
+            if (fps < 30) {
+                // 自动优化策略
+                this.strategies.forEach(strategy => {
+                    if (strategy instanceof LODManager) {
+                        // 降低LOD级别
+                        // strategy.adjustQualityLevel('down');
+                    }
+                    if (strategy instanceof MemoryManager) {
+                        strategy.cleanup();
+                    }
+                });
+            }
+        });
+
+        this.performanceMonitor.on('memoryWarning', (memoryMB: number) => {
+            // 触发内存清理
+            const memoryStrategy = this.getStrategy<MemoryManager>('memory');
+            if (memoryStrategy) {
+                memoryStrategy.cleanup();
+            }
+        });
     }
 }
 

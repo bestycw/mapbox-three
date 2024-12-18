@@ -1,5 +1,5 @@
 import { GeoUtils } from './GeoUtils';
-import { Coordinates, ExtendedObject3D, UserData } from '../config';
+import { Coordinates, ExtendedObject3D, UserData } from '../config/types/index';
 
 
 /**

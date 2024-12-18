@@ -78,7 +78,7 @@ export class LODManager extends BaseStrategy<LODConfig> {
             }
 
             const currentLevel = lod.getCurrentLevel();
-            this._updateOnDistance(lod, distance);
+            this.updateOnDistance(lod, distance);
             const newLevel = lod.getCurrentLevel();
 
             if (currentLevel !== newLevel) {
@@ -167,7 +167,7 @@ export class LODManager extends BaseStrategy<LODConfig> {
         if (!this.config.enabled || object.userData.disableLOD) return object;
 
         if (object instanceof THREE.LOD) return object;
-
+        // console.log(customLevels)
         const levels = customLevels || this.config.levels;
         if (!levels || levels.length === 0) return object;
 
@@ -184,7 +184,7 @@ export class LODManager extends BaseStrategy<LODConfig> {
                 lod.addLevel(levelObject, distance);
             }
         });
-
+        // console.log(lod)
         const id = object.uuid;
         this.lodObjects.set(id, lod);
 
@@ -405,7 +405,7 @@ export class LODManager extends BaseStrategy<LODConfig> {
         return simplified;
     }
 
-    _updateOnDistance( lod: THREE.LOD, distance:number ):void {
+    private updateOnDistance( lod: THREE.LOD, distance:number ):void {
         const levels = lod.levels;
         // console.log(levels)
         if (levels.length > 1) {

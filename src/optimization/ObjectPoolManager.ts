@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EventEmitter } from 'events';
+// import { EventEmitter } from 'events';
 import { 
     ExtendedObject3D,
     ObjectPoolConfig,
@@ -8,6 +8,7 @@ import {
 } from '../config/types';
 import { defaultConfig } from '../config/defaults';
 import { BaseStrategy } from './BaseStrategy';
+import { EventEmitter } from '../utils/EventEmitter';
 /**
  * 对象池接口
  */
@@ -384,8 +385,8 @@ export class ObjectPoolManager extends BaseStrategy<ObjectPoolConfig> {
     public emit<K extends keyof ObjectPoolEvents>(
         event: K,
         data: ObjectPoolEvents[K]
-    ): boolean {
-        return this.eventEmitter.emit(event, data);
+    ): void {
+        this.eventEmitter.emit(event, data);
     }
 
     /** 

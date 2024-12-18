@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BaseConfig, MemoryStats, MemoryMetrics } from '../config/types';
-import { defaultConfig } from '../config';
+import { defaultConfig } from '../config/defaults';
 import { BaseStrategy } from './BaseStrategy';
 /**
  * 内存管理器配置接口
@@ -46,7 +46,7 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     }
 
     protected validateConfig(config: Partial<MemoryConfig>): Required<MemoryConfig> {
-        const defaultMemory = defaultConfig.optimization?.memoryManager ?? {};
+        const defaultMemory = defaultConfig.optimization?.memory ?? {};
         return {
             ...defaultMemory,
             ...config
@@ -98,7 +98,7 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     }
 
     /**
-     * 检查内存使用情况
+     * 检查内存使��情况
      */
     private checkMemoryUsage(): void {
         const stats = this.getMemoryStats();

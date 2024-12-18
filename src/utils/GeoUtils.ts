@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MERCATOR_A, DEG2RAD, PROJECTION_WORLD_SIZE, EARTH_CIRCUMFERENCE, WORLD_SIZE } from '../config/constants';
-import { Coordinates } from '../config';
+import { Coordinates } from '../config/types/index';
 
 export class GeoUtils {
     // 将坐标投影到世界坐标

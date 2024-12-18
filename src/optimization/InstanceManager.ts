@@ -100,24 +100,26 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
     }
 
     protected updateMetrics(): void {
-        let totalInstances = 0;
-        let totalMemory = 0;
+        this.monitorOperation('updateMetrics', () => {
+            let totalInstances = 0;
+            let totalMemory = 0;
 
-        this.instanceGroups.forEach(group => {
-            totalInstances += group.count;
-            totalMemory += this.calculateGroupMemory(group);
+            this.instanceGroups.forEach(group => {
+                totalInstances += group.count;
+                totalMemory += this.calculateGroupMemory(group);
+            });
+
+            this.metrics = {
+                ...this.metrics,
+                instanceCount: totalInstances,
+                batchCount: this.instanceGroups.size,
+                memoryUsage: totalMemory,
+                updateTime: this.metrics.updateTime,
+                drawCalls: this.instanceGroups.size,
+                operationCount: this.metrics.operationCount + 1,
+                lastUpdateTime: Date.now()
+            };
         });
-
-        this.metrics = {
-            ...this.metrics,
-            instanceCount: totalInstances,
-            batchCount: this.instanceGroups.size,
-            memoryUsage: totalMemory,
-            updateTime: this.metrics.updateTime,
-            drawCalls: this.instanceGroups.size,
-            operationCount: this.metrics.operationCount + 1,
-            lastUpdateTime: Date.now()
-        };
     }
 
     // 以下是原有的公共方法，保持不变
@@ -136,33 +138,35 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
         groupId: string,
         instanceConfig?: Partial<InstanceConfig>
     ): THREE.InstancedMesh | null {
-        if (!this.config.enabled || !(object instanceof THREE.Mesh)) {
-            return null;
-        }
-
-        let group = this.instanceGroups.get(groupId);
-        if (!group) {
-            group = this.createInstanceGroup(object, groupId, instanceConfig);
-            this.instanceGroups.set(groupId, group);
-        }
-
-        // 检查是否超出最大实例数
-        if (group.count >= group.maxCount) {
-            if (this.config.dynamicBatching) {
-                this.expandInstanceGroup(group);
-            } else {
-                console.warn(`Instance group ${groupId} has reached its maximum capacity`);
+        return this.monitorOperation('addInstance', () => {
+            if (!this.config.enabled || !(object instanceof THREE.Mesh)) {
                 return null;
             }
-        }
 
-        const instanceId = group.count++;
-        group.objects.set(object, instanceId);
-        group.matrix[instanceId] = object.matrix.clone();
-        group.dirty = true;
+            let group = this.instanceGroups.get(groupId);
+            if (!group) {
+                group = this.createInstanceGroup(object, groupId, instanceConfig);
+                this.instanceGroups.set(groupId, group);
+            }
 
-        this.updateMetrics();
-        return group.mesh;
+            // 检查是否超出最大实例数
+            if (group.count >= group.maxCount) {
+                if (this.config.dynamicBatching) {
+                    this.expandInstanceGroup(group);
+                } else {
+                    console.warn(`Instance group ${groupId} has reached its maximum capacity`);
+                    return null;
+                }
+            }
+
+            const instanceId = group.count++;
+            group.objects.set(object, instanceId);
+            group.matrix[instanceId] = object.matrix.clone();
+            group.dirty = true;
+
+            this.updateMetrics();
+            return group.mesh;
+        });
     }
 
     /**
