@@ -3,14 +3,15 @@ import {
     ExtendedObject3D, 
     InstanceConfig,
     InstanceMetrics,
-
 } from '../config/types';
 import { defaultConfig } from '../config/defaults';
 import { BaseStrategy } from './BaseStrategy';
+
 /**
- * 实例组接口
+ * Instance group interface
  */
 interface InstanceGroup {
+    id: string;
     mesh: THREE.InstancedMesh;
     geometry: THREE.BufferGeometry;
     material: THREE.Material | THREE.Material[];
@@ -19,10 +20,11 @@ interface InstanceGroup {
     objects: Map<ExtendedObject3D, number>;
     matrix: THREE.Matrix4[];
     dirty: boolean;
+    config: Required<InstanceConfig>;
 }
 
 /**
- * 实例化管理器 - 管理Three.js对象的实例化渲染
+ * Instance Manager - Manages instanced rendering of Three.js objects
  */
 export class InstanceManager extends BaseStrategy<InstanceConfig> {
     private static instance: InstanceManager;
@@ -50,7 +52,7 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
     }
 
     protected onInitialize(): void {
-        // 初始化时不需要特殊处理
+        // No special initialization needed
     }
 
     protected onUpdate(params: any): void {
@@ -69,33 +71,68 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
 
     protected onDispose(): void {
         this.instanceGroups.forEach(group => {
-            this.disposeResources({
-                geometries: [group.mesh.geometry],
-                materials: Array.isArray(group.material) ? group.material : [group.material]
-            });
+            this.disposeGroup(group);
         });
         this.instanceGroups.clear();
     }
 
-    private disposeResources(resources: {
-        geometries?: THREE.BufferGeometry[];
-        materials?: THREE.Material[];
-        textures?: THREE.Texture[];
-    }): void {
-        if (resources.geometries) {
-            resources.geometries.forEach(geometry => geometry?.dispose());
+    private disposeGroup(group: InstanceGroup): void {
+        // First, remove all instances from their parents
+        group.objects.forEach((_, object) => {
+            if (object.parent) {
+                object.parent.remove(object);
+            }
+        });
+
+        // Remove instance mesh from its parent
+        if (group.mesh && group.mesh.parent) {
+            group.mesh.parent.remove(group.mesh);
         }
-        if (resources.materials) {
-            resources.materials.forEach(material => material?.dispose());
+
+        // Reset instance matrix
+        if (group.mesh) {
+            for (let i = 0; i < group.maxCount; i++) {
+                group.mesh.setMatrixAt(i, new THREE.Matrix4());
+            }
+            group.mesh.instanceMatrix.needsUpdate = true;
+            group.mesh.count = 0;  // Important: reset instance count
         }
-        if (resources.textures) {
-            resources.textures.forEach(texture => texture?.dispose());
+
+        // Dispose geometry
+        if (group.geometry) {
+            group.geometry.dispose();
         }
+
+        // Dispose materials
+        if (Array.isArray(group.material)) {
+            group.material.forEach(mat => mat?.dispose());
+        } else if (group.material) {
+            group.material.dispose();
+        }
+
+        // Dispose instance mesh resources
+        if (group.mesh) {
+            if (group.mesh.geometry) {
+                group.mesh.geometry.dispose();
+            }
+            if (Array.isArray(group.mesh.material)) {
+                group.mesh.material.forEach(mat => mat?.dispose());
+            } else if (group.mesh.material) {
+                group.mesh.material.dispose();
+            }
+            group.mesh.dispose();  // Dispose the instanced mesh itself
+        }
+
+        // Clear all references
+        group.objects.clear();
+        group.matrix = [];
+        group.count = 0;
+        group.dirty = false;
     }
 
     protected onClear(): void {
         this.instanceGroups.forEach((group, groupId) => {
-            this.clearInstances(groupId);
+            this.clearInstanceGroup(groupId);
         });
     }
 
@@ -103,10 +140,12 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
         this.monitorOperation('updateMetrics', () => {
             let totalInstances = 0;
             let totalMemory = 0;
+            let drawCalls = 0;
 
             this.instanceGroups.forEach(group => {
                 totalInstances += group.count;
                 totalMemory += this.calculateGroupMemory(group);
+                if (group.count > 0) drawCalls++;
             });
 
             this.metrics = {
@@ -114,25 +153,13 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
                 instanceCount: totalInstances,
                 batchCount: this.instanceGroups.size,
                 memoryUsage: totalMemory,
-                updateTime: this.metrics.updateTime,
-                drawCalls: this.instanceGroups.size,
+                drawCalls,
                 operationCount: this.metrics.operationCount + 1,
                 lastUpdateTime: Date.now()
             };
         });
     }
 
-    // 以下是原有的公共方法，保持不变
-    public static getInstance(config: InstanceConfig): InstanceManager {
-        if (!InstanceManager.instance) {
-            InstanceManager.instance = new InstanceManager(config);
-        }
-        return InstanceManager.instance;
-    }
-
-    /**
-     * 添加要实例化的对象
-     */
     public addInstance(
         object: ExtendedObject3D,
         groupId: string,
@@ -149,9 +176,8 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
                 this.instanceGroups.set(groupId, group);
             }
 
-            // 检查是否超出最大实例数
             if (group.count >= group.maxCount) {
-                if (this.config.dynamicBatching) {
+                if (group.config.dynamicBatching) {
                     this.expandInstanceGroup(group);
                 } else {
                     console.warn(`Instance group ${groupId} has reached its maximum capacity`);
@@ -169,9 +195,6 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
         });
     }
 
-    /**
-     * 更新实例化对象
-     */
     public updateInstance(object: ExtendedObject3D, groupId: string): void {
         const group = this.instanceGroups.get(groupId);
         if (!group) return;
@@ -183,48 +206,63 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
         group.dirty = true;
     }
 
-    /**
-     * 移除实例化对象
-     */
     public removeInstance(object: ExtendedObject3D, groupId: string): void {
         const group = this.instanceGroups.get(groupId);
         if (!group) return;
-
+        console.log(group)
         const instanceId = group.objects.get(object);
         if (instanceId === undefined) return;
 
-        // 移动最后一个实例到被删除的位置
+        // Remove the object from its parent if it has one
+        if (object.parent) {
+            object.parent.remove(object);
+        }
+
         const lastInstanceId = group.count - 1;
         if (instanceId !== lastInstanceId) {
+            // Move the last instance to the removed position
             const lastObject = Array.from(group.objects.entries())
                 .find(([_, id]) => id === lastInstanceId)?.[0];
             if (lastObject) {
                 group.matrix[instanceId].copy(group.matrix[lastInstanceId]);
                 group.objects.set(lastObject, instanceId);
+                if (group.mesh) {
+                    group.mesh.setMatrixAt(instanceId, group.matrix[instanceId]);
+                }
             }
         }
+
+        // Clear the matrix at the last position
+        group.matrix[lastInstanceId].identity();
+  
 
         group.objects.delete(object);
         group.count--;
         group.dirty = true;
 
+        if (group.mesh) {
+            group.mesh.setMatrixAt(lastInstanceId, group.matrix[lastInstanceId]);
+            group.mesh.count = group.count;  // Update instance mesh count
+            group.mesh.instanceMatrix.needsUpdate = true;
+        }
         this.updateMetrics();
     }
 
-    /**
-     * 创建实例化组
-     */
     private createInstanceGroup(
         template: THREE.Mesh,
         groupId: string,
         config?: Partial<InstanceConfig>
     ): InstanceGroup {
+        const groupConfig = this.validateConfig({
+            ...this.config,
+            ...config
+        });
+
         const initialCount = Math.min(
-            config?.initialCount ?? this.config.batchSize!,
-            this.config.maxInstanceCount!
+            groupConfig.initialCount,
+            groupConfig.maxInstanceCount
         );
 
-        // 确保使用单个材质
         const material = Array.isArray(template.material) ? template.material[0] : template.material;
 
         const mesh = new THREE.InstancedMesh(
@@ -232,11 +270,13 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
             material,
             initialCount
         );
-        mesh.frustumCulled = true;
-        mesh.castShadow = template.castShadow;
-        mesh.receiveShadow = template.receiveShadow;
+
+        mesh.frustumCulled = groupConfig.frustumCulled;
+        mesh.castShadow = groupConfig.castShadow;
+        mesh.receiveShadow = groupConfig.receiveShadow;
 
         return {
+            id: groupId,
             mesh,
             geometry: template.geometry,
             material: template.material,
@@ -244,41 +284,30 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
             maxCount: initialCount,
             objects: new Map(),
             matrix: new Array(initialCount).fill(null).map(() => new THREE.Matrix4()),
-            dirty: false
+            dirty: false,
+            config: groupConfig
         };
     }
 
-    /**
-     * 计算实例化组内存使用
-     */
     private calculateGroupMemory(group: InstanceGroup): number {
-        const geometrySize = this.estimateGeometrySize(group.geometry);
-        const materialSize = 1024; // 估算材质大小约1KB
-        const instanceSize = 16 * 4; // 4x4矩阵，每个浮点数4字节
+        const geometrySize = this.estimateGeometrySize(group.geometry!);
+        const materialSize = 1024; // Estimate material size as 1KB
+        const instanceSize = 16 * 4; // 4x4 matrix, 4 bytes per float
         return geometrySize + materialSize + (instanceSize * group.maxCount);
     }
 
-    /**
-     * 估几何体内存大小
-     */
     private estimateGeometrySize(geometry: THREE.BufferGeometry): number {
         let size = 0;
-        for (const attribute of Object.values(geometry.attributes) as THREE.BufferAttribute[]) {
-            size += attribute.array.byteLength;
+        for (const attribute of Object.values(geometry.attributes)) {
+            size += (attribute as THREE.BufferAttribute).array.byteLength;
         }
         return size;
     }
 
-    /**
-     * 获取性能指标
-     */
-    public getMetrics() {
+    public getMetrics(): Required<InstanceMetrics> {
         return { ...this.metrics };
     }
 
-    /**
-     * 获取实例化组信息
-     */
     public getGroupInfo(groupId: string) {
         const group = this.instanceGroups.get(groupId);
         if (!group) return null;
@@ -287,130 +316,76 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
             instanceCount: group.count,
             maxInstances: group.maxCount,
             memoryUsage: this.calculateGroupMemory(group),
-            dirty: group.dirty
+            dirty: group.dirty,
+            config: { ...group.config }
         };
     }
 
-    /**
-     * 清理资源
-     */
-    public dispose(): void {
-        this.instanceGroups.forEach(group => {
-            group.geometry.dispose();
-            if (group.material instanceof THREE.Material) {
-                group.material.dispose();
-            }
-        });
-        this.instanceGroups.clear();
-        this.metrics = {
-            ...this.metrics,
-            instanceCount: 0,
-            batchCount: 0,
-            memoryUsage: 0,
-            updateTime: 0,
-            drawCalls: 0,
-            operationCount: this.metrics.operationCount,
-            lastUpdateTime: Date.now()
-        };
-    }
-
-    /**
-     * 清除指定组的所有实例
-     */
-    public clearInstances(groupId: string): void {
+    public clearInstanceGroup(groupId: string): void {
         const group = this.instanceGroups.get(groupId);
         if (!group) return;
 
-        // 清除所有实例对象和资源
-        group.objects.forEach((instanceId, object) => {
-            // console.log(object);
-            if (object instanceof THREE.Mesh) {
-                if (object.geometry) object.geometry.dispose();
-                if (object.material) {
-                    if (Array.isArray(object.material)) {
-                        object.material.forEach(mat => mat.dispose());
-                    } else {
-                        object.material.dispose();
-                    }
-                }
+        // 创建实例对象的副本，避免在迭代过程中修改集合
+        const objectsToRemove = Array.from(group.objects.keys());
+        
+        // 逐个移除实例
+        objectsToRemove.forEach(object => {
+            if (object.parent) {
+                object.parent.remove(object);
             }
+            group.objects.delete(object);
         });
 
-        // 清理实例化网格
+        // 重置实例化网格
         if (group.mesh) {
-            if (group.mesh.geometry) group.mesh.geometry.dispose();
-            if (group.mesh.material) {
-                if (Array.isArray(group.mesh.material)) {
-                    group.mesh.material.forEach(mat => mat.dispose());
-                } else {
-                    group.mesh.material.dispose();
-                }
+            if (group.mesh.parent) {
+                group.mesh.parent.remove(group.mesh);
+            }
+            // 重置所有矩阵
+            for (let i = 0; i < group.maxCount; i++) {
+                group.mesh.setMatrixAt(i, new THREE.Matrix4());
             }
             group.mesh.instanceMatrix.needsUpdate = true;
             group.mesh.count = 0;
         }
 
-        // 清除组数据
-        group.objects.clear();
-        group.count = 0;
+        // 清理资源
+        this.disposeGroup(group);
         this.instanceGroups.delete(groupId);
-        
-        // 更新性能指标
         this.updateMetrics();
     }
 
-    /**
-     * 清除所有实例组
-     */
-    public clearAll(): void {
-        this.instanceGroups.forEach((group, groupId) => {
-            this.clearInstances(groupId);
-        });
-    }
-
-    /**
-     * 更新实例组配置
-     */
     public updateGroupConfig(groupId: string, config: Partial<InstanceConfig>): void {
         const group = this.instanceGroups.get(groupId);
         if (!group) return;
 
-        if (config.frustumCulled !== undefined) {
-            group.mesh.frustumCulled = config.frustumCulled;
+        const newConfig = this.validateConfig({
+            ...group.config,
+            ...config
+        });
+
+        group.config = newConfig;
+        if (group.mesh) {
+            group.mesh.frustumCulled = newConfig.frustumCulled;
+            group.mesh.castShadow = newConfig.castShadow;
+            group.mesh.receiveShadow = newConfig.receiveShadow;
         }
-        if (config.castShadow !== undefined) {
-            group.mesh.castShadow = config.castShadow;
-        }
-        if (config.receiveShadow !== undefined) {
-            group.mesh.receiveShadow = config.receiveShadow;
-        }
-        
-        // 如果需要更新最大实例数
-        if (config.maxInstanceCount && config.maxInstanceCount > group.maxCount) {
-            this.expandInstanceGroup(group, config.maxInstanceCount);
+
+        if (newConfig.maxInstanceCount > group.maxCount) {
+            this.expandInstanceGroup(group, newConfig.maxInstanceCount);
         }
     }
 
-    /**
-     * 获取组内所有实例对象
-     */
     public getGroupObjects(groupId: string): ExtendedObject3D[] {
         const group = this.instanceGroups.get(groupId);
-        if (!group) return [];
-        return Array.from(group.objects.keys());
+        return group ? Array.from(group.objects.keys()) : [];
     }
 
-    /**
-     * 检查对象是否在指定组中
-     */
     public hasInstance(object: ExtendedObject3D, groupId: string): boolean {
         const group = this.instanceGroups.get(groupId);
         return group ? group.objects.has(object) : false;
     }
 
-    /**
-     * 获取对象所在的组ID
-     */
     public getObjectGroupId(object: ExtendedObject3D): string | null {
         for (const [groupId, group] of this.instanceGroups.entries()) {
             if (group.objects.has(object)) {
@@ -420,14 +395,10 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
         return null;
     }
 
-    /**
-     * 扩展实例化组容量到指定大小
-     */
     private expandInstanceGroup(group: InstanceGroup, targetCount?: number): void {
-        const maxCount = this.config.maxInstanceCount!;
         const newMaxCount = targetCount ? 
-            Math.min(targetCount, maxCount) :
-            Math.min(group.maxCount * 2, maxCount);
+            Math.min(targetCount, group.config.maxInstanceCount) :
+            Math.min(group.maxCount * 2, group.config.maxInstanceCount);
 
         if (newMaxCount <= group.maxCount) return;
 
@@ -436,66 +407,28 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
             group.material,
             newMaxCount
         );
-        newMesh.frustumCulled = group.mesh.frustumCulled;
-        newMesh.castShadow = group.mesh.castShadow;
-        newMesh.receiveShadow = group.mesh.receiveShadow;
 
-        // 复制现有实例
+        newMesh.frustumCulled = group.config.frustumCulled;
+        newMesh.castShadow = group.config.castShadow;
+        newMesh.receiveShadow = group.config.receiveShadow;
+
+        // Copy existing instances
         for (let i = 0; i < group.count; i++) {
             newMesh.setMatrixAt(i, group.matrix[i]);
         }
         newMesh.instanceMatrix.needsUpdate = true;
 
-        // 扩展矩阵数组
+        // Expand matrix array
         const newMatrix = new Array(newMaxCount).fill(null).map((_, i) => 
             i < group.matrix.length ? group.matrix[i] : new THREE.Matrix4()
         );
 
-        // 更新组
+        // Update group
         group.mesh = newMesh;
         group.maxCount = newMaxCount;
         group.matrix = newMatrix;
     }
 
-    public clearInstanceGroup(groupId: string):void {
-        const group = this.instanceGroups.get(groupId);
-        if (!group) return;
-
-        // 清除组内所有实例
-        group.objects.forEach((instanceId, object) => {
-            if (object instanceof THREE.Mesh) {
-                if (object.geometry) object.geometry.dispose();
-                if (object.material) {
-                    if (Array.isArray(object.material)) {
-                        object.material.forEach(mat => mat.dispose());
-                    } else {
-                        object.material.dispose();
-                    }
-                }
-            }
-        });
-
-        // 清理实例化网格
-        if (group.mesh) {
-            if (group.mesh.geometry) group.mesh.geometry.dispose();
-            if (group.mesh.material) {
-                if (Array.isArray(group.mesh.material)) {
-                    group.mesh.material.forEach(mat => mat.dispose());
-                } else {
-                    group.mesh.material.dispose();
-                }
-            }
-            group.mesh.instanceMatrix.needsUpdate = true;
-            group.mesh.count = 0;
-        }
-
-        // 清除组数据
-        group.objects.clear();
-        group.count = 0;
-        this.instanceGroups.delete(groupId);
-    }
-
-    // 添加 getInstanceGroup 方法
     public getInstanceGroup(groupId: string): InstanceGroup | undefined {
         return this.instanceGroups.get(groupId);
     }

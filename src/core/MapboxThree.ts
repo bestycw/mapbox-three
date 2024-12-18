@@ -204,7 +204,7 @@ export class MapboxThree {
                 }
             }
         }
-        console.log(object)
+        // console.log(object)
         formatObj(object, userOptions);
         
         if (object instanceof THREE.Mesh || object instanceof THREE.Group || object instanceof THREE.LOD) {

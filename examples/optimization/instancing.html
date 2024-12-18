@@ -15,12 +15,13 @@
             color: white;
             padding: 15px;
             border-radius: 8px;
-            font-family: monospace;
-            max-width: 400px;
+            font-family: Arial, sans-serif;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         #info {
             top: 10px;
             left: 10px;
+            min-width: 200px;
         }
         #controls {
             top: 10px;
@@ -32,7 +33,7 @@
         #metrics {
             bottom: 10px;
             left: 10px;
-            font-size: 12px;
+            min-width: 200px;
         }
         .metric-group {
             margin: 10px 0;
@@ -42,41 +43,64 @@
         .metric-title {
             color: #4CAF50;
             font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .metric {
+            margin: 5px 0;
+            font-size: 14px;
         }
         .metric-value {
-            margin-left: 10px;
-            color: #ddd;
+            color: #4CAF50;
+            font-weight: bold;
+            margin-left: 5px;
         }
         button {
-            padding: 8px 12px;
+            padding: 10px 15px;
             background: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            transition: background 0.3s;
+            font-weight: bold;
+            transition: all 0.3s ease;
         }
         button:hover {
             background: #45a049;
+            transform: translateY(-1px);
         }
         button.active {
-            background: #ff5722;
+            background: #2196F3;
         }
         .slider-container {
             display: flex;
             align-items: center;
             gap: 10px;
             color: white;
+            margin: 10px 0;
         }
         input[type="range"] {
             flex: 1;
+            height: 5px;
+            border-radius: 5px;
+            background: #4CAF50;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
         }
         .chart-container {
-            height: 100px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid #4CAF50;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
             margin-top: 10px;
             position: relative;
+            overflow: hidden;
         }
         .chart-bar {
             position: absolute;
@@ -87,59 +111,69 @@
         }
         .scenario-button {
             margin: 5px;
-            padding: 5px 10px;
+            padding: 8px 12px;
             background: #2196F3;
             border: none;
             color: white;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: all 0.3s ease;
         }
         .scenario-button:hover {
             background: #1976D2;
+            transform: translateY(-1px);
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="info" class="panel">
-        <h3>实例化渲染演示</h3>
+        <h3 style="margin: 0 0 10px 0; color: #4CAF50">Instancing Rendering Demo</h3>
         <div class="metric-group">
-            <div class="metric-title">基本统计</div>
-            <div>实例数量: <span id="instanceCount" class="metric-value">0</span></div>
-            <div>批次数量: <span id="batchCount" class="metric-value">0</span></div>
-            <div>内存使用: <span id="memoryUsage" class="metric-value">0 MB</span></div>
-            <div>FPS: <span id="fps" class="metric-value">0</span></div>
+            <div class="metric-title">Basic Statistics</div>
+            <div class="metric">Instance Count: <span id="instanceCount" class="metric-value">0</span></div>
+            <div class="metric">Batch Count: <span id="batchCount" class="metric-value">0</span></div>
+            <div class="metric">Memory Usage: <span id="memoryUsage" class="metric-value">0 MB</span></div>
+            <div class="metric">FPS: <span id="fps" class="metric-value">0</span></div>
+            <div class="metric">Draw Calls: <span id="drawCalls" class="metric-value">0</span></div>
         </div>
     </div>
     <div id="controls" class="panel">
-        <div>
-            <button id="toggleAnimation">开始动画</button>
-            <button id="addInstances">添加实例</button>
-            <button id="clearAll">清除全部</button>
+        <div style="display: flex; gap: 8px;">
+            <button id="toggleAnimation">Start Animation</button>
+            <button id="addInstances">Add Instances</button>
+            <button id="clearAll">Clear All</button>
         </div>
         <div class="slider-container">
-            实例数量: <input type="range" id="instanceSlider" min="100" max="10000" value="1000" step="100">
+            Instance Count: <input type="range" id="instanceSlider" min="100" max="10000" value="1000" step="100">
             <span id="instanceValue">1000</span>
         </div>
-        <div>
-            <div class="metric-title">场景测试</div>
-            <button class="scenario-button" data-scenario="grid">网格布局</button>
-            <button class="scenario-button" data-scenario="spiral">螺旋布局</button>
-            <button class="scenario-button" data-scenario="random">随机布局</button>
+        <div class="metric-group">
+            <div class="metric-title">Test Scenarios</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                <button class="scenario-button" data-scenario="grid">Grid Layout</button>
+                <button class="scenario-button" data-scenario="spiral">Spiral Layout</button>
+                <button class="scenario-button" data-scenario="random">Random Layout</button>
+            </div>
         </div>
     </div>
     <div id="metrics" class="panel">
         <div class="metric-group">
-            <div class="metric-title">性能指标</div>
-            <div>绘制调用: <span id="drawCalls" class="metric-value">0</span></div>
-            <div>更新时间: <span id="updateTime" class="metric-value">0ms</span></div>
-            <div>顶点数量: <span id="vertexCount" class="metric-value">0</span></div>
+            <div class="metric-title">Performance Metrics</div>
+            <div class="metric">Update Time: <span id="updateTime" class="metric-value">0ms</span></div>
+            <div class="metric">Vertex Count: <span id="vertexCount" class="metric-value">0</span></div>
+            <div class="metric">Cache Hit Rate: <span id="hitRate" class="metric-value">0%</span></div>
         </div>
         <div class="metric-group">
-            <div class="metric-title">实例组</div>
-            <div>组数量: <span id="groupCount" class="metric-value">0</span></div>
-            <div>每组平均: <span id="avgPerGroup" class="metric-value">0</span></div>
-            <div>最大组大小: <span id="maxGroupSize" class="metric-value">0</span></div>
+            <div class="metric-title">Instance Groups</div>
+            <div class="metric">Group Count: <span id="groupCount" class="metric-value">0</span></div>
+            <div class="metric">Average Per Group: <span id="avgPerGroup" class="metric-value">0</span></div>
+            <div class="metric">Max Group Size: <span id="maxGroupSize" class="metric-value">0</span></div>
+        </div>
+        <div class="metric-group">
+            <div class="metric-title">Performance Chart</div>
+            <div class="chart-container" id="performanceChart"></div>
         </div>
     </div>
 
@@ -154,6 +188,8 @@
         let frameCount = 0;
         const instances = new Set();
         const CHART_POINTS = 30;
+        let performanceHistory = [];
+        let optimizationManager;
 
         // 配置实例化
         const instanceConfig = {
@@ -162,7 +198,8 @@
             maxInstanceCount: 10000,
             batchSize: 1000,
             dynamicBatching: true,
-            updateInterval: 16
+            updateInterval: 16,
+            predictiveScaling: true
         };
 
         const config = {
@@ -175,6 +212,25 @@
                 pitch: 45,
                 bearing: 0
             },
+            three: {
+                renderer: {
+                    antialias: true,
+                    alpha: true
+                },
+                lights: {
+                    ambient: {
+                        enabled: true,
+                        color: '#ffffff',
+                        intensity: 0.5
+                    },
+                    directional: {
+                        enabled: true,
+                        color: '#ffffff',
+                        intensity: 1.0,
+                        position: new THREE.Vector3(1, 1, 1)
+                    }
+                }
+            },
             optimization: {
                 instancing: instanceConfig
             }
@@ -183,70 +239,114 @@
         async function init() {
             mapboxThree = new MapboxThree(config);
             await mapboxThree.init();
-            
-            // 初始化 GeoUtils
-            const center = mapboxThree.map.getCenter();
-            // GeoUtils.init([center.lng, center.lat]);
-            
+            optimizationManager = mapboxThree.getOptimizationManager();
             setupEventListeners();
-            // 默认创建一些实例
-            // createGrid(1000);
+            setupPerformanceChart();
+            startPerformanceMonitoring();
             animate();
         }
 
-        // 创建基础几何体
+        function startPerformanceMonitoring() {
+            const performanceMonitor = optimizationManager.performanceMonitor;
+            
+            setInterval(() => {
+                const metrics = performanceMonitor.getMetrics();
+                
+                // 更新FPS和绘制调用
+                document.getElementById('fps').textContent = Math.round(metrics.performance.fps || 0);
+                document.getElementById('drawCalls').textContent = metrics.performance.drawCalls || 0;
+                
+                // 更新性能图表
+                updatePerformanceChart(metrics.performance.fps || 0);
+            }, 1000);
+        }
+
+        function setupPerformanceChart() {
+            const chart = document.getElementById('performanceChart');
+            for (let i = 0; i < CHART_POINTS; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.left = (i * (100 / CHART_POINTS)) + '%';
+                chart.appendChild(bar);
+            }
+        }
+
+        function updatePerformanceChart(fps) {
+            performanceHistory.push(fps);
+            if (performanceHistory.length > CHART_POINTS) {
+                performanceHistory.shift();
+            }
+
+            const maxFPS = Math.max(...performanceHistory, 60);
+            const bars = document.querySelectorAll('.chart-bar');
+            
+            performanceHistory.forEach((fps, i) => {
+                const height = (fps / maxFPS) * 100;
+                bars[i].style.height = height + '%';
+            });
+        }
+
         function createTemplate() {
-            const geometry = new THREE.BoxGeometry(10, 10, 10);  // 减小基础大小
+            // Create more interesting geometry
+            const geometries = [
+                new THREE.BoxGeometry(10, 10, 10),
+                new THREE.SphereGeometry(6, 16, 16),
+                new THREE.ConeGeometry(5, 12, 8),
+                new THREE.TorusGeometry(5, 2, 16, 32)
+            ];
+
+            // Create interesting materials with different colors and effects
             const material = new THREE.MeshPhongMaterial({
                 color: new THREE.Color().setHSL(Math.random(), 0.8, 0.5),
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.8,
+                shininess: 50,
+                specular: new THREE.Color(0x444444),
+                flatShading: Math.random() > 0.5
             });
+
+            // Randomly select geometry
+            const geometry = geometries[Math.floor(Math.random() * geometries.length)];
             const mesh = new THREE.Mesh(geometry, material);
-            mesh.userData.units = 'meters';  // 设置单位为米
+            mesh.userData.units = 'meters';
             return mesh;
         }
 
         function createInstance(position, groupId = 'random', lngLat) {
+            // console.log(position)
             const template = createTemplate();
             template.position.copy(position);
             
-            // 使用 OptimizationManager 添加实例
-            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
-            // console.log(instanceManager);
-            const instancedMesh = instanceManager.addInstance(
-                template,
-                groupId,
-                {
-                    initialCount: 100,
-                    dynamicBatching: true,
-                    frustumCulled: true,
-                    castShadow: true,
-                    receiveShadow: true,
-                    coordinates: lngLat
-                }
-            );
-            // console.log(lngLat);
+            const instanceStrategy = optimizationManager.getStrategy('instancing');
+            // console.log(instanceStrategy)
+            if (!instanceStrategy) return null;
+
+            const instancedMesh = instanceStrategy.addInstance(template, groupId, {
+                initialCount: 100,
+                dynamicBatching: true,
+                frustumCulled: true,
+                castShadow: true,
+                receiveShadow: true,
+                coordinates: lngLat
+            });
+
             if (instancedMesh) {
                 instances.add(template);
-                // 确保添加到场景时包含正确的单位和坐标信息
-                mapboxThree.add(instancedMesh,{}, { 
-                    coordinates: lngLat
-                });
-            }   
-
+                mapboxThree.add(instancedMesh, {}, { coordinates: lngLat });
+            }
+            // console.log(instancedMesh)
             return template;
         }
 
-        function createGrid(size, spacing = 0.0002) { // 增加间距
-            clearAll(); // 清除现有实例
+        function createGrid(size, spacing = 0.0002) {
+            clearAll();
             const count = Math.floor(Math.sqrt(size));
             
-            // 获取地图中心点
             const center = mapboxThree.map.getCenter();
             const centerLng = center.lng;
             const centerLat = center.lat;
 
+            // Create a wave pattern
             for (let i = 0; i < count; i++) {
                 for (let j = 0; j < count; j++) {
                     const lng = centerLng + (i * spacing) - (count * spacing / 2);
@@ -254,106 +354,148 @@
                     
                     const lngLat = [lng, lat];
                     const position = GeoUtils.projectToWorld(lngLat);
-                    position.y = 20; // 降低高度到20米
+                    
+                    // Add wave height pattern
+                    const waveHeight = Math.sin(i * 0.2) * Math.cos(j * 0.2) * 30;
+                    position.y = 20 + waveHeight;
                     
                     createInstance(position, 'grid', lngLat);
                 }
             }
         }
 
-        function createSpiral(count, radius = 0.001, height = 100) { // radius约等于100米
+        function createSpiral(count, radius = 0.001, height = 200) {
             const angleStep = (Math.PI * 2) / count * 10;
             const radiusStep = radius / count;
             const heightStep = height / count;
             
-            // 获取地图中心点
             const center = mapboxThree.map.getCenter();
             const centerLng = center.lng;
             const centerLat = center.lat;
 
+            // Create double helix pattern
             for (let i = 0; i < count; i++) {
                 const angle = angleStep * i;
                 const r = radiusStep * i;
-                const y = heightStep * i + 50; // 从50米高度开始螺旋上升
+                
+                // First helix
+                const y1 = heightStep * i + 50 + Math.sin(angle * 2) * 20;
+                const lng1 = centerLng + (Math.cos(angle) * r);
+                const lat1 = centerLat + (Math.sin(angle) * r);
+                
+                const lngLat1 = [lng1, lat1];
+                const position1 = GeoUtils.projectToWorld(lngLat1);
+                position1.y = y1;
+                createInstance(position1, 'spiral', lngLat1);
 
-                // 计算经纬度偏移
-                const lng = centerLng + (Math.cos(angle) * r);
-                const lat = centerLat + (Math.sin(angle) * r);
+                // Second helix (offset by PI)
+                const y2 = heightStep * i + 50 + Math.sin(angle * 2 + Math.PI) * 20;
+                const lng2 = centerLng + (Math.cos(angle + Math.PI) * r);
+                const lat2 = centerLat + (Math.sin(angle + Math.PI) * r);
                 
-                const lngLat = [lng, lat];
-                // 转换为Three.js坐标
-                const position = GeoUtils.projectToWorld(lngLat);
-                position.y = y;
-                
-                createInstance(position, 'spiral', lngLat);
+                const lngLat2 = [lng2, lat2];
+                const position2 = GeoUtils.projectToWorld(lngLat2);
+                position2.y = y2;
+                createInstance(position2, 'spiral', lngLat2);
             }
         }
 
-        function createRandom(count, bounds = 0.001) { // 修改随机生成函数以使用地理坐标
-            // 获取地图中心点
+        function createRandom(count, bounds = 0.001) {
             const center = mapboxThree.map.getCenter();
             const centerLng = center.lng;
             const centerLat = center.lat;
 
+            // Create clusters of instances
             for (let i = 0; i < count; i++) {
-                // 在地图中心周围随机生成经纬度
-                const lng = centerLng + (Math.random() - 0.5) * bounds;
-                const lat = centerLat + (Math.random() - 0.5) * bounds;
-                const lngLat = [lng, lat];
+                // Create cluster center
+                const clusterCenterLng = centerLng + (Math.random() - 0.5) * bounds;
+                const clusterCenterLat = centerLat + (Math.random() - 0.5) * bounds;
+                const clusterRadius = bounds * 0.2;
+                
+                // Create instances around cluster center
+                const clusterSize = Math.floor(Math.random() * 5) + 3;
+                for (let j = 0; j < clusterSize; j++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = Math.random() * clusterRadius;
+                    
+                    const lng = clusterCenterLng + Math.cos(angle) * r;
+                    const lat = clusterCenterLat + Math.sin(angle) * r;
+                    const lngLat = [lng, lat];
 
-                // 转换为Three.js坐标
-                const position = GeoUtils.projectToWorld(lngLat);
-                position.y = Math.random() * 100; // 随机高度
+                    const position = GeoUtils.projectToWorld(lngLat);
+                    position.y = Math.random() * 100 + Math.sin(angle * 4) * 20;
 
-                createInstance(position, 'random', lngLat);
+                    createInstance(position, 'random', lngLat);
+                }
             }
         }
 
         function updateInstances(deltaTime) {
             if (!isAnimating) return;
 
-            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
+            const instanceStrategy = optimizationManager.getStrategy('instancing');
+            if (!instanceStrategy) return;
+            
+            const time = performance.now() * 0.001;
             
             instances.forEach(instance => {
-                // 获取实例所属的组
-                const groupId = instanceManager.getObjectGroupId(instance);
+                const groupId = instanceStrategy.getObjectGroupId(instance);
                 if (!groupId) return;
 
-                // 更新实例的变换
-                instance.rotation.x += deltaTime * 0.5;
-                instance.rotation.y += deltaTime * 0.3;
-                instance.position.y += Math.sin(performance.now() * 0.001) * 0.5;
+                // Create more interesting animations based on group type
+                switch (groupId) {
+                    case 'grid':
+                        // Wave animation
+                        instance.rotation.x = Math.sin(time + instance.position.x * 0.1) * 0.3;
+                        instance.rotation.y = Math.cos(time + instance.position.z * 0.1) * 0.3;
+                        instance.position.y += Math.sin(time * 2 + instance.position.x * 0.1) * deltaTime;
+                        break;
+                        
+                    case 'spiral':
+                        // Spiral rotation and bounce
+                        instance.rotation.x += deltaTime * 2;
+                        instance.rotation.y += deltaTime * 3;
+                        instance.position.y += Math.sin(time * 3 + instance.position.z * 0.2) * deltaTime * 2;
+                        break;
+                        
+                    case 'random':
+                        // Random movement
+                        instance.rotation.x += deltaTime * (1 + Math.sin(time) * 0.5);
+                        instance.rotation.y += deltaTime * (1 + Math.cos(time) * 0.5);
+                        instance.rotation.z += deltaTime * 0.5;
+                        instance.position.y += Math.sin(time * 4 + instance.position.x * 0.2) * deltaTime;
+                        break;
+                }
 
-                // 使用 instanceManager 更新实例
-                instanceManager.updateInstance(instance, groupId);
+                instanceStrategy.updateInstance(instance, groupId);
             });
         }
 
         function updateStats() {
-            const instanceManager = mapboxThree.getOptimizationManager().getInstanceManager();
-            const metrics = instanceManager.getMetrics();
+            const instanceStrategy = optimizationManager.getStrategy('instancing');
+            if (!instanceStrategy) return;
+
+            const metrics = instanceStrategy.getMetrics();
             
-            // 更新基本统计
-            document.getElementById('instanceCount').textContent = metrics.instanceCount;
-            document.getElementById('batchCount').textContent = metrics.batchCount;
+            // Update basic statistics
+            document.getElementById('instanceCount').textContent = metrics.instanceCount || 0;
+            document.getElementById('batchCount').textContent = metrics.batchCount || 0;
             document.getElementById('memoryUsage').textContent = 
-                (metrics.memoryUsage / (1024 * 1024)).toFixed(2);
+                ((metrics.memoryUsage || 0) / (1024 * 1024)).toFixed(2);
             
-            // 更新性能指标
-            document.getElementById('drawCalls').textContent = metrics.drawCalls;
+            // Update performance metrics
             document.getElementById('updateTime').textContent = 
-                metrics.updateTime.toFixed(2);
+                (metrics.updateTime || 0).toFixed(2) + 'ms';
             document.getElementById('vertexCount').textContent = 
                 instances.size * 36;
+            document.getElementById('hitRate').textContent = 
+                ((metrics.hitRate || 0) * 100).toFixed(1) + '%';
 
-            // 更新实例组信息
-            const groupInfo = instanceManager.getGroupInfo('default');
-            if (groupInfo) {
-                document.getElementById('groupCount').textContent = metrics.batchCount;
-                document.getElementById('avgPerGroup').textContent = 
-                    Math.floor(metrics.instanceCount / metrics.batchCount);
-                document.getElementById('maxGroupSize').textContent = groupInfo.maxInstances;
-            }
+            // Update instance group info
+            document.getElementById('groupCount').textContent = metrics.batchCount || 0;
+            document.getElementById('avgPerGroup').textContent = 
+                Math.floor((metrics.instanceCount || 0) / (metrics.batchCount || 1));
+            document.getElementById('maxGroupSize').textContent = metrics.maxGroupSize || 0;
         }
 
         function animate() {
@@ -363,43 +505,51 @@
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
 
-            // 更新FPS
-            frameCount++;
-            if (currentTime - lastTime >= 1000) {
-                document.getElementById('fps').textContent = frameCount;
-                frameCount = 0;
-            }
-
-            // 更新实例
             updateInstances(deltaTime);
             updateStats();
-
-            // 渲染场景
             mapboxThree.render();
         }
 
         function clearAll() {
-            // 获取 instanceManager
-            const instanceManager = mapboxThree.getOptimizationManager()
-            console.log(instanceManager);
-            // 清除所有实例组
+            const instanceStrategy = optimizationManager.getStrategy('instancing');
+            if (!instanceStrategy) {
+                console.warn('Instance strategy not found');
+                return;
+            }
+
+            // Convert Set to Array to avoid modification during iteration
+            const instanceArray = Array.from(instances);
+            
+            // First remove all instances from the scene and strategy
+            instanceArray.forEach(instance => {
+                const groupId = instanceStrategy.getObjectGroupId(instance);
+                // console.log(groupId)
+                if (groupId) {
+                    instanceStrategy.removeInstance(instance, groupId);
+                    if (instance.parent) {
+                        instance.parent.remove(instance);
+                    }
+                }
+            });
+
+            // Then clear all groups
             ['grid', 'spiral', 'random'].forEach(groupId => {
-                // console.log(groupId);
-                // 直接使用 clearInstances，它会处理所有清理工作
-                instanceManager.clearInstanceGroup(groupId);
+                const group = instanceStrategy.getInstanceGroup(groupId);
+                if (group && group.mesh.parent) {
+                    group.mesh.parent.remove(group.mesh);
+                }
+                instanceStrategy.clearInstanceGroup(groupId);
             });
             
-            // 清除实例集合
+            // Clear the instances set
             instances.clear();
-            
-            // 更新统计信息
             updateStats();
         }
 
         function setupEventListeners() {
             document.getElementById('toggleAnimation').addEventListener('click', (e) => {
                 isAnimating = !isAnimating;
-                e.target.textContent = isAnimating ? '停止动画' : '开始动画';
+                e.target.textContent = isAnimating ? 'Stop Animation' : 'Start Animation';
                 e.target.classList.toggle('active', isAnimating);
             });
 
@@ -407,23 +557,23 @@
 
             document.getElementById('instanceSlider').addEventListener('input', (e) => {
                 document.getElementById('instanceValue').textContent = e.target.value;
-                // 动态更新实例配置
                 const count = parseInt(e.target.value);
+                const instanceStrategy = optimizationManager.getStrategy('instancing');
+                if (!instanceStrategy) return;
+
                 ['grid', 'spiral', 'random'].forEach(groupId => {
-                    mapboxThree.getOptimizationManager().updateInstanceConfig(groupId, {
-                        maxCount: count,
+                    instanceStrategy.updateConfig(groupId, {
+                        maxInstanceCount: count,
                         batchSize: Math.min(1000, Math.ceil(count / 10))
                     });
                 });
             });
 
-            // 场景测试按钮
             document.querySelectorAll('.scenario-button').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const scenario = e.target.dataset.scenario;
                     const count = parseInt(document.getElementById('instanceSlider').value);
                     
-                    // 先清除其他场景
                     clearAll();
                     
                     switch(scenario) {
@@ -441,27 +591,20 @@
             });
 
             document.getElementById('addInstances').addEventListener('click', () => {
-                // 获取当前滑块值作为要添加的实例数量
                 const count = parseInt(document.getElementById('instanceSlider').value);
-                // console.log(count);
-                // 获取地图中心点
                 const center = mapboxThree.map.getCenter();
                 const centerLng = center.lng;
                 const centerLat = center.lat;
                 
-                // 在当前视图范围内随机添加实例
-                const bounds = 0.001; // 约100米范围
+                const bounds = 0.001;
                 for (let i = 0; i < count; i++) {
-                    // 随机位置
                     const lng = centerLng + (Math.random() - 0.5) * bounds;
                     const lat = centerLat + (Math.random() - 0.5) * bounds;
                     const lngLat = [lng, lat];
                     
-                    // 转换为Three.js坐标
                     const position = GeoUtils.projectToWorld(lngLat);
-                    position.y = Math.random() * 100; // 随机高度 0-100米
+                    position.y = Math.random() * 100;
                     
-                    // 创建新实例
                     createInstance(position, 'random', lngLat);
                 }
             });
