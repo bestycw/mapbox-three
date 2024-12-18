@@ -42,6 +42,7 @@ export class OptimizationManager extends EventEmitter {
         this.config = config as Required<OptimizationConfig>; 
         this.isEnabled = true;
         this.performanceMonitor = PerformanceMonitor.getInstance();
+        this.performanceMonitor.setRenderer(renderer);
         
         this.initialize();
     }
@@ -222,7 +223,7 @@ export class OptimizationManager extends EventEmitter {
     }
 
     /**
-     * 监控性能并自动优化
+     * 监控性能并自动优化  TODO
      */
     private monitorAndOptimize(): void {
         this.performanceMonitor.on('fpsWarning', (fps: number) => {

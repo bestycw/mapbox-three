@@ -3,80 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MapboxThree - Advanced Object Pool Example</title>
+    <title>MapboxThree - Object Pool Example</title>
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
     <style>
         body { margin: 0; }
         #map { width: 100vw; height: 100vh; }
-        .panel {
+        #info {
             position: fixed;
+            top: 10px;
+            left: 10px;
             background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 15px;
             border-radius: 8px;
-            font-family: monospace;
-            max-width: 400px;
-        }
-        #info {
-            top: 10px;
-            left: 10px;
+            font-family: Arial, sans-serif;
+            min-width: 200px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         #controls {
+            position: fixed;
             top: 10px;
             right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         #metrics {
+            position: fixed;
             bottom: 10px;
             left: 10px;
-            font-size: 12px;
-        }
-        .metric-group {
-            margin: 10px 0;
-            padding: 5px;
-            border-left: 3px solid #4CAF50;
-        }
-        .metric-title {
-            color: #4CAF50;
-            font-weight: bold;
-        }
-        .metric-value {
-            margin-left: 10px;
-            color: #ddd;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            min-width: 200px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         button {
-            padding: 8px 12px;
-            background: #4CAF50;
-            color: white;
+            padding: 10px 15px;
+            cursor: pointer;
             border: none;
             border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.3s;
+            background: #4CAF50;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
         }
         button:hover {
             background: #45a049;
+            transform: translateY(-1px);
         }
         button.active {
-            background: #ff5722;
+            background: #2196F3;
+        }
+        .metric {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .metric-value {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .metric-group {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
         }
         .slider-container {
             display: flex;
             align-items: center;
             gap: 10px;
             color: white;
+            margin: 10px 0;
         }
         input[type="range"] {
             flex: 1;
+            height: 5px;
+            border-radius: 5px;
+            background: #4CAF50;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
         }
         .chart-container {
-            height: 100px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid #4CAF50;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
             margin-top: 10px;
             position: relative;
+            overflow: hidden;
         }
         .chart-bar {
             position: absolute;
@@ -85,67 +113,51 @@
             background: #4CAF50;
             transition: height 0.3s;
         }
-        .scenario-button {
-            margin: 5px;
-            padding: 5px 10px;
-            background: #2196F3;
-            border: none;
-            color: white;
-            cursor: pointer;
-            border-radius: 3px;
-        }
-        .scenario-button:hover {
-            background: #1976D2;
-        }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    <div id="info" class="panel">
-        <h3>高级对象池演示</h3>
-        <div class="metric-group">
-            <div class="metric-title">基本统计</div>
-            <div>活跃粒子: <span id="activeCount" class="metric-value">0</span></div>
-            <div>池中可用: <span id="availableCount" class="metric-value">0</span></div>
-            <div>内存使用: <span id="memoryUsage" class="metric-value">0 MB</span></div>
-            <div>FPS: <span id="fps" class="metric-value">0</span></div>
-        </div>
+    <div id="info">
+        <h3>Object Pool Demo</h3>
+        <div class="metric">Active Particles: <span id="activeCount" class="metric-value">0</span></div>
+        <div class="metric">Available in Pool: <span id="availableCount" class="metric-value">0</span></div>
+        <div class="metric">Memory Usage: <span id="memoryUsage" class="metric-value">0</span> MB</div>
+        <div class="metric">FPS: <span id="fps" class="metric-value">0</span></div>
+        <div class="metric">Draw Calls: <span id="drawCalls" class="metric-value">0</span></div>
     </div>
-    <div id="controls" class="panel">
-        <div>
-            <button id="toggleSpawn">开始生成</button>
-            <button id="spawnBurst">生成爆发</button>
-            <button id="clearAll">清除全部</button>
-        </div>
+    <div id="controls">
+        <button id="toggleSpawn">Start Spawning</button>
+        <button id="spawnBurst">Spawn Burst</button>
+        <button id="clearAll">Clear All</button>
         <div class="slider-container">
-            生成速率: <input type="range" id="spawnRate" min="1" max="100" value="10">
+            Spawn Rate: <input type="range" id="spawnRate" min="1" max="100" value="10">
             <span id="spawnRateValue">10</span>/s
         </div>
-        <div>
-            <div class="metric-title">场景测试</div>
-            <button class="scenario-button" data-scenario="highLoad">高负载测试</button>
-            <button class="scenario-button" data-scenario="bursty">突发负载测试</button>
-            <button class="scenario-button" data-scenario="memory">内存压力测试</button>
+        <div class="metric-group">
+            <h4 style="margin: 0 0 10px 0; color: #4CAF50">Test Scenarios</h4>
+            <button class="scenario-button" data-scenario="highLoad">High Load Test</button>
+            <button class="scenario-button" data-scenario="bursty">Burst Load Test</button>
+            <button class="scenario-button" data-scenario="memory">Memory Stress Test</button>
         </div>
     </div>
-    <div id="metrics" class="panel">
-        <div class="metric-group">
-            <div class="metric-title">性能指标</div>
-            <div>缓存命中率: <span id="hitRate" class="metric-value">0%</span></div>
-            <div>获取时间: <span id="acquisitionTime" class="metric-value">0ms</span></div>
-            <div>周转率: <span id="turnoverRate" class="metric-value">0</span></div>
-            <div>峰值使用: <span id="peakUsage" class="metric-value">0</span></div>
+    <div id="metrics">
+        <div class="metric-group" style="margin-top: 0">
+            <h4 style="margin: 0 0 10px 0; color: #4CAF50">Performance Metrics</h4>
+            <div class="metric">Cache Hit Rate: <span id="hitRate" class="metric-value">0%</span></div>
+            <div class="metric">Acquisition Time: <span id="acquisitionTime" class="metric-value">0ms</span></div>
+            <div class="metric">Turnover Rate: <span id="turnoverRate" class="metric-value">0</span></div>
+            <div class="metric">Peak Usage: <span id="peakUsage" class="metric-value">0</span></div>
         </div>
         <div class="metric-group">
-            <div class="metric-title">生命周期</div>
-            <div>平均使用次数: <span id="avgUseCount" class="metric-value">0</span></div>
-            <div>平均池中时间: <span id="avgPoolTime" class="metric-value">0ms</span></div>
-            <div>最老对象年龄: <span id="oldestObject" class="metric-value">0s</span></div>
+            <h4 style="margin: 0 0 10px 0; color: #4CAF50">Lifecycle Stats</h4>
+            <div class="metric">Average Use Count: <span id="avgUseCount" class="metric-value">0</span></div>
+            <div class="metric">Average Pool Time: <span id="avgPoolTime" class="metric-value">0ms</span></div>
+            <div class="metric">Oldest Object Age: <span id="oldestObject" class="metric-value">0s</span></div>
         </div>
         <div class="metric-group">
-            <div class="metric-title">预测分析</div>
-            <div>预测需求: <span id="predictedDemand" class="metric-value">0</span></div>
-            <div>预测准确度: <span id="predictionAccuracy" class="metric-value">0%</span></div>
+            <h4 style="margin: 0 0 10px 0; color: #4CAF50">Demand Analysis</h4>
+            <div class="metric">Predicted Demand: <span id="predictedDemand" class="metric-value">0</span></div>
+            <div class="metric">Prediction Accuracy: <span id="predictionAccuracy" class="metric-value">0%</span></div>
             <div class="chart-container" id="demandChart"></div>
         </div>
     </div>
@@ -164,6 +176,7 @@
         let demandHistory = [];
         const CHART_POINTS = 30;
         let optimizationManager;
+
         // 配置对象池
         const poolConfig = {
             enabled: true,
@@ -187,9 +200,25 @@
                 pitch: 45,
                 bearing: 0
             },
-
             three: {
-                autoRender: false
+                renderer: {
+                    antialias: true,
+                    alpha: true
+                },
+                lights: {
+                    ambient: {
+                        enabled: true,
+                        color: '#ffffff',
+                        intensity: 0.5
+                    },
+                    directional: {
+                        enabled: true,
+                        color: '#ffffff',
+                        intensity: 1.0,
+                        position: new THREE.Vector3(1, 1, 1)
+                    }
+                },
+                autoRender: true
             },
             optimization: {
                 objectPool: poolConfig
@@ -202,12 +231,29 @@
             optimizationManager = mapboxThree.getOptimizationManager();
             setupEventListeners();
             setupDemandChart();
+            startPerformanceMonitoring();
             animate();
+        }
+
+        function startPerformanceMonitoring() {
+            const performanceMonitor = optimizationManager.performanceMonitor;
+            
+            setInterval(() => {
+                const metrics = performanceMonitor.getMetrics();
+                const report = optimizationManager.getPerformanceReport();
+                
+                // 更新FPS
+                document.getElementById('fps').textContent = Math.round(metrics.performance.fps || 0);
+                
+                // 更新绘制调用次数
+                document.getElementById('drawCalls').textContent = metrics.performance.drawCalls || 0;
+            }, 1000);
         }
 
         // 创建粒子
         function createParticle() {
-            return optimizationManager.getObjectFromPool(
+            const objectPoolStrategy = optimizationManager.getStrategy('objectPool');
+            return objectPoolStrategy?.acquire(
                 'particle',
                 () => {
                     const geometry = new THREE.SphereGeometry(5, 8, 8);
@@ -266,7 +312,8 @@
                 if (particle.userData.age >= particle.userData.lifetime) {
                     particles.delete(particle);
                     mapboxThree.remove(particle);
-                    optimizationManager.releaseObjectToPool('particle', particle);
+                    const objectPoolStrategy = optimizationManager.getStrategy('objectPool');
+                    objectPoolStrategy?.release('particle', particle);
                 } else {
                     const velocity = particle.userData.velocity;
                     const rotationSpeed = particle.userData.rotationSpeed;
@@ -289,34 +336,36 @@
         }
 
         function updateStats() {
-            const stats = optimizationManager.getObjectPoolManager().getStats().particle;
-            if (!stats) return;
+            const objectPoolStrategy = optimizationManager.getStrategy('objectPool');
+            const stats = objectPoolStrategy?.getStats();
+            const particleStats = stats?.particle;
+            if (!particleStats) return;
 
             // 更新基本统计
-            document.getElementById('activeCount').textContent = particles.size;
-            document.getElementById('availableCount').textContent = stats.available;
+            document.getElementById('activeCount').textContent = particleStats.inUse;
+            document.getElementById('availableCount').textContent = particleStats.available;
             document.getElementById('memoryUsage').textContent = 
-                (stats.metrics.memoryUsage / (1024 * 1024)).toFixed(2);
+                (particleStats.metrics.memoryUsage / (1024 * 1024)).toFixed(2);
 
             // 更新性能指标
             document.getElementById('hitRate').textContent = 
-                (stats.metrics.hitRate * 100).toFixed(1) + '%';
+                (particleStats.metrics.hitRate * 100).toFixed(1) + '%';
             document.getElementById('acquisitionTime').textContent = 
-                stats.metrics.averageAcquisitionTime.toFixed(2) + 'ms';
+                particleStats.metrics.averageAcquisitionTime.toFixed(2) + 'ms';
             document.getElementById('turnoverRate').textContent = 
-                stats.metrics.turnoverRate.toFixed(2);
-            document.getElementById('peakUsage').textContent = stats.metrics.peakUsage;
+                particleStats.metrics.turnoverRate.toFixed(2);
+            document.getElementById('peakUsage').textContent = particleStats.metrics.peakUsage;
 
             // 更新生命周期信息
             document.getElementById('avgUseCount').textContent = 
-                stats.lifecycle.averageUseCount.toFixed(1);
+                particleStats.lifecycle.averageUseCount.toFixed(1);
             document.getElementById('avgPoolTime').textContent = 
-                (stats.lifecycle.averageTimeInPool / 1000).toFixed(1) + 's';
+                (particleStats.lifecycle.averageTimeInPool / 1000).toFixed(1) + 's';
             document.getElementById('oldestObject').textContent = 
-                ((performance.now() - stats.lifecycle.oldestObject) / 1000).toFixed(1) + 's';
+                ((performance.now() - particleStats.lifecycle.oldestObject) / 1000).toFixed(1) + 's';
 
             // 更新需求图表
-            updateDemandChart(particles.size);
+            updateDemandChart(particleStats.inUse);
         }
 
         function setupDemandChart() {
@@ -344,7 +393,18 @@
             });
         }
 
+        function clearObjects() {
+            const objectPoolStrategy = optimizationManager.getStrategy('objectPool');
+            particles.forEach(particle => {
+                mapboxThree.remove(particle);
+                objectPoolStrategy?.release('particle', particle);
+            });
+            particles.clear();
+            updateStats();
+        }
+
         function runScenario(type) {
+            const objectPoolStrategy = optimizationManager.getStrategy('objectPool');
             switch (type) {
                 case 'highLoad':
                     // 高负载测试
@@ -369,7 +429,7 @@
                     document.getElementById('spawnRateValue').textContent = 20;
                     setInterval(() => {
                         if (particles.size > 1000) {
-                            optimizationManager.clearUpPoolObjects();
+                            objectPoolStrategy?.cleanup();
                         }
                     }, 1000);
                     break;
@@ -406,7 +466,8 @@
             updateStats();
 
             // 定期清理
-            optimizationManager.clearUpPoolObjects();
+            const objectPoolStrategy = optimizationManager.getStrategy('objectPool');
+            objectPoolStrategy?.cleanup();
         }
 
         function setupEventListeners() {
@@ -419,12 +480,7 @@
             document.getElementById('spawnBurst').addEventListener('click', () => spawnBurst(200));
 
             document.getElementById('clearAll').addEventListener('click', () => {
-                particles.forEach(particle => {
-                    mapboxThree.remove(particle);
-                    optimizationManager.releaseObjectToPool('particle', particle);
-                });
-                particles.clear();
-                updateStats();
+                clearObjects();
             });
 
             document.getElementById('spawnRate').addEventListener('input', (e) => {

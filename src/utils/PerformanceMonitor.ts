@@ -1,5 +1,4 @@
-// import { EventEmitter } from 'events';
-
+import * as THREE from 'three';
 import { EventEmitter } from "./EventEmitter";
 
 /**
@@ -30,6 +29,7 @@ interface PerformanceMetrics {
         fps: number;
         frameTime: number;
         operations: Record<string, number>;
+        drawCalls: number;
     };
     memory?: {
         geometries: number;
@@ -54,7 +54,7 @@ interface OperationMetrics {
 }
 
 /**
- * 性能监控器 - 监和分析应用性能
+ * ��能监控器 - 监和分析应用性能
  */
 export class PerformanceMonitor extends EventEmitter {
     private static instance: PerformanceMonitor;
@@ -65,6 +65,7 @@ export class PerformanceMonitor extends EventEmitter {
     private lastFrameTime: number = 0;
     private monitorInterval: NodeJS.Timeout | null = null;
     private activeOperations: Map<string, OperationMetrics> = new Map();
+    private renderer?: THREE.WebGLRenderer;
 
     private constructor(config?: PerformanceConfig) {
         super();
@@ -100,6 +101,13 @@ export class PerformanceMonitor extends EventEmitter {
     }
 
     /**
+     * 设置渲染器以跟踪drawCalls
+     */
+    public setRenderer(renderer: THREE.WebGLRenderer) {
+        this.renderer = renderer;
+    }
+
+    /**
      * 初始化性能指标
      */
     private initializeMetrics(): PerformanceMetrics {
@@ -107,7 +115,8 @@ export class PerformanceMonitor extends EventEmitter {
             performance: {
                 fps: 0,
                 frameTime: 0,
-                operations: {}
+                operations: {},
+                drawCalls: 0
             },
             memory: {
                 geometries: 0,
@@ -162,13 +171,18 @@ export class PerformanceMonitor extends EventEmitter {
      * 采样性能指标
      */
     private sampleMetrics(): void {
+        // 更新drawCalls
+        if (this.renderer) {
+            this.metrics.performance.drawCalls = this.renderer.info.render.calls;
+        }
+
         // 内存监控
         if (this.config.enableMemoryMonitor) {
             const memory = (performance as any).memory;
             if (memory) {
                 this.metrics.memory = {
-                    geometries: 0,
-                    textures: 0,
+                    geometries: this.renderer?.info.memory.geometries || 0,
+                    textures: this.renderer?.info.memory.textures || 0,
                     materials: 0,
                     totalMemory: memory.totalJSHeapSize
                 };

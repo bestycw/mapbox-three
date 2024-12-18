@@ -396,4 +396,30 @@ export class ObjectPoolManager extends BaseStrategy<ObjectPoolConfig> {
         console.error(`[ObjectPoolManager] ${message}`, error);
         this.emit('error', { message, error });
     }
+
+    /**
+     * 获取所有池的统计信息
+     */
+    public getStats() {
+        const stats: Record<string, any> = {};
+        this.pools.forEach((pool, key) => {
+            stats[key] = {
+                available: pool.inactive.length,
+                inUse: pool.active.size,
+                metrics: {
+                    hitRate: pool.metadata.hitCount / (pool.metadata.hitCount + pool.metadata.missCount) || 0,
+                    averageAcquisitionTime: 0.5, // 暂时使用固定值，后续可以实现实际计算
+                    peakUsage: pool.metadata.maxActive,
+                    turnoverRate: pool.metadata.totalCreated / Math.max(1, pool.active.size + pool.inactive.length),
+                    memoryUsage: this.estimateMemoryUsage()
+                },
+                lifecycle: {
+                    averageUseCount: pool.metadata.totalCreated / Math.max(1, pool.active.size + pool.inactive.length),
+                    averageTimeInPool: Date.now() - pool.metadata.creationTime,
+                    oldestObject: pool.metadata.creationTime
+                }
+            };
+        });
+        return stats;
+    }
 } 

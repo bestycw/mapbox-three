@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MapboxThree - LOD Example</title>
-    <!-- <script src="https://unpkg.com/three@0.158.0/build/three.js"></script> -->
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
     <style>
@@ -14,29 +13,55 @@
             position: fixed;
             top: 10px;
             left: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
             font-family: Arial, sans-serif;
+            min-width: 200px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         #controls {
             position: fixed;
             top: 10px;
             right: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         button {
-            padding: 8px;
+            padding: 10px 15px;
             cursor: pointer;
-        }
-        .active {
-            background-color: #4CAF50;
+            border: none;
+            border-radius: 4px;
+            background: #4CAF50;
             color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+        button.active {
+            background: #2196F3;
+        }
+        .metric {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .metric-value {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        #performance {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
         }
     </style>
 </head>
@@ -44,10 +69,16 @@
     <div id="map"></div>
     <div id="info">
         <h3>LOD (Level of Detail) Demo</h3>
-        <p>Camera Distance: <span id="distance">0</span>m</p>
-        <p>Current Detail Level: <span id="detail">100</span>%</p>
-        <p>Vertex Count: <span id="vertices">0</span></p>
-        <p>LOD Status: <span id="lodStatus">Enabled</span></p>
+        <div class="metric">Camera Distance: <span id="distance" class="metric-value">0</span>m</div>
+        <div class="metric">Current Detail Level: <span id="detail" class="metric-value">100</span>%</div>
+        <div class="metric">Vertex Count: <span id="vertices" class="metric-value">0</span></div>
+        <div class="metric">LOD Status: <span id="lodStatus" class="metric-value">Enabled</span></div>
+        <div id="performance">
+            <h4>Performance Metrics</h4>
+            <div class="metric">FPS: <span id="fps" class="metric-value">0</span></div>
+            <div class="metric">Draw Calls: <span id="drawCalls" class="metric-value">0</span></div>
+            <div class="metric">Memory Usage: <span id="memory" class="metric-value">0</span> MB</div>
+        </div>
     </div>
     <div id="controls">
         <button id="toggleLOD">Toggle LOD</button>
@@ -60,7 +91,8 @@
     <script type="module">
         import { MapboxThree } from '../../src/core/MapboxThree.ts';
         import * as THREE from 'three';
-        import {config as defaultConfig} from '../config.js'
+        import {config as defaultConfig} from '../config.js';
+
         let mapboxThree;
         const config = {
             mapbox: {
@@ -86,19 +118,23 @@
                     directional: {
                         enabled: true,
                         color: '#ffffff',
-                        intensity: 1.0
+                        intensity: 1.0,
+                        position: new THREE.Vector3(1, 1, 1)
                     }
-                }
+                },
+                autoRender: true
             },
             optimization: {
-                //全局默认配置
                 lod: {
                     enabled: true,
                     levels: [
                         { distance: 0, detail: 1 },
                         { distance: 1000, detail: 0.5 },
-                        { distance: 2000, detail: 0.25 }
-                    ]
+                        { distance: 2000, detail: 0.25 },
+                        { distance: 3000, detail: 0.1 }
+                    ],
+                    dynamicAdjustment: true,
+                    performanceTarget: 60
                 }
             }
         };
@@ -107,19 +143,20 @@
             mapboxThree = new MapboxThree(config);
             await mapboxThree.init();
             setupHooks();
+            startPerformanceMonitoring();
         }
 
         // 添加默认LOD盒子
         function addDefaultLOD() {
-            const geometry = new THREE.BoxGeometry(200, 200, 200, 32, 32, 32);
+            const geometry = new THREE.BoxGeometry(200, 200, 200, 64, 64, 64);
             const material = new THREE.MeshPhongMaterial({ 
-                color: '#00ff00',
+                color: new THREE.Color(Math.random(), Math.random(), Math.random()),
                 wireframe: true 
             });
             const box = new THREE.Mesh(geometry, material);
             
-            const lat = 40 + (Math.random() - 0.5) * 2;
-            const lng = -74.5 + (Math.random() - 0.5) * 2;
+            const lat = 40 + (Math.random() - 0.5) * 0.1;
+            const lng = -74.5 + (Math.random() - 0.5) * 0.1;
             
             mapboxThree.add(box, {}, {
                 coordinates: [lng, lat, 500]
@@ -128,24 +165,25 @@
 
         // 添加自定义LOD球体
         function addCustomLOD() {
-            const geometry = new THREE.SphereGeometry(200, 64, 64);
+            const geometry = new THREE.SphereGeometry(200, 128, 128);
             const material = new THREE.MeshPhongMaterial({ 
-                color: '#ff0000',
+                color: new THREE.Color(Math.random(), Math.random(), Math.random()),
                 wireframe: true 
             });
             const sphere = new THREE.Mesh(geometry, material);
             
-            const lat = 40 + (Math.random() - 0.5) * 2;
-            const lng = -74.5 + (Math.random() - 0.5) * 2;
+            const lat = 40 + (Math.random() - 0.5) * 0.1;
+            const lng = -74.5 + (Math.random() - 0.5) * 0.1;
             
             mapboxThree.add(sphere, {}, {
                 coordinates: [lng, lat, 500],
                 lod: {
                     lodLevels: [
                         { distance: 0, detail: 1 },
-                        { distance: 1000, detail: 0.6 },
-                        { distance: 2000, detail: 0.3 },
-                        { distance: 3000, detail: 0.1 }
+                        { distance: 800, detail: 0.75 },
+                        { distance: 1500, detail: 0.5 },
+                        { distance: 2500, detail: 0.25 },
+                        { distance: 3500, detail: 0.1 }
                     ]
                 }
             });
@@ -153,22 +191,23 @@
 
         // 添加多几何体LOD
         function addMultiLOD() {
-            // 高细节几何体
-            const highDetail = new THREE.TorusKnotGeometry(100, 30, 128, 32);
-            const mediumDetail = new THREE.TorusKnotGeometry(100, 30, 64, 16);
-            const lowDetail = new THREE.TorusKnotGeometry(100, 30, 32, 8);
+            const highDetail = new THREE.TorusKnotGeometry(150, 40, 256, 64);
+            const mediumDetail = new THREE.TorusKnotGeometry(150, 40, 128, 32);
+            const lowDetail = new THREE.TorusKnotGeometry(150, 40, 64, 16);
+            const veryLowDetail = new THREE.TorusKnotGeometry(150, 40, 32, 8);
             
             const material = new THREE.MeshPhongMaterial({ 
-                color: '#ff0000',
+                color: new THREE.Color(Math.random(), Math.random(), Math.random()),
                 wireframe: true 
             });
             
-            const highMesh = new THREE.Mesh(highDetail, material);
-            const mediumMesh = new THREE.Mesh(mediumDetail, material);
-            const lowMesh = new THREE.Mesh(lowDetail, material);
+            const highMesh = new THREE.Mesh(highDetail, material.clone());
+            const mediumMesh = new THREE.Mesh(mediumDetail, material.clone());
+            const lowMesh = new THREE.Mesh(lowDetail, material.clone());
+            const veryLowMesh = new THREE.Mesh(veryLowDetail, material.clone());
             
-            const lat = 40 + (Math.random() - 0.5) * 2;
-            const lng = -74.5 + (Math.random() - 0.5) * 2;
+            const lat = 40 + (Math.random() - 0.5) * 0.1;
+            const lng = -74.5 + (Math.random() - 0.5) * 0.1;
             
             mapboxThree.add(highMesh, {}, {
                 coordinates: [lng, lat, 500],
@@ -176,7 +215,8 @@
                     lodLevels: [
                         { distance: 0, detail: highMesh },
                         { distance: 1000, detail: mediumMesh },
-                        { distance: 2000, detail: lowMesh }
+                        { distance: 2000, detail: lowMesh },
+                        { distance: 3000, detail: veryLowMesh }
                     ]
                 }
             });
@@ -184,14 +224,15 @@
 
         // 清除所有对象
         function clearObjects() {
-            mapboxThree.world.children.slice().forEach(child => {
-                mapboxThree.remove(child);
-            });
+            const objects = [...mapboxThree.world.children];
+            objects.forEach(obj => mapboxThree.remove(obj));
         }
 
         // 设置LOD钩子以更新UI
         function setupHooks() {
-            const lodManager = mapboxThree.getOptimizationManager().getLODManager();
+            const lodManager = mapboxThree.getOptimizationManager().getStrategy('lod');
+            if (!lodManager) return;
+
             lodManager.setHooks(
                 (object, distance) => {
                     document.getElementById('distance').textContent = Math.round(distance);
@@ -203,7 +244,7 @@
                             const currentObject = object.getObjectForDistance(currentLevel);
                             if (currentObject instanceof THREE.Mesh) {
                                 const vertexCount = currentObject.geometry.getAttribute('position').count;
-                                document.getElementById('vertices').textContent = vertexCount;
+                                document.getElementById('vertices').textContent = vertexCount.toLocaleString();
                                 const maxVertices = object.levels[0].object.geometry.getAttribute('position').count;
                                 const detail = Math.round((vertexCount / maxVertices) * 100);
                                 document.getElementById('detail').textContent = detail;
@@ -216,12 +257,44 @@
 
         // 切换LOD功能
         function toggleLOD() {
-            const lodManager = mapboxThree.getOptimizationManager().getLODManager();
+            const lodManager = mapboxThree.getOptimizationManager().getStrategy('lod');
+            if (!lodManager) return;
+
             const config = lodManager.getConfig();
             const enabled = !config.enabled;
             lodManager.setEnabled(enabled);
             document.getElementById('lodStatus').textContent = enabled ? 'Enabled' : 'Disabled';
             document.getElementById('toggleLOD').classList.toggle('active', enabled);
+        }
+
+        // 性能监控
+        function startPerformanceMonitoring() {
+            const performanceMonitor = mapboxThree.getOptimizationManager().performanceMonitor;
+            
+            setInterval(() => {
+                const metrics = performanceMonitor.getMetrics();
+                const report = mapboxThree.getOptimizationManager().getPerformanceReport();
+                
+                // 更新FPS
+                document.getElementById('fps').textContent = Math.round(metrics.performance.fps || 0);
+                
+                // 更新绘制调用次数
+                document.getElementById('drawCalls').textContent = metrics.performance.drawCalls || 0;
+                
+                // 更新内存使用情况
+                let totalMemory = 0;
+                
+                // 累加所有策略的内存使用
+                Object.values(report.strategies).forEach(strategyMetrics => {
+                    if (strategyMetrics && typeof strategyMetrics.memoryUsage === 'number') {
+                        totalMemory += strategyMetrics.memoryUsage;
+                    }
+                });
+                
+                // 转换为MB并保留2位小数
+                const memoryInMB = (totalMemory / (1024 * 1024)).toFixed(2);
+                document.getElementById('memory').textContent = memoryInMB;
+            }, 1000);
         }
 
         // 添加事件监听器
