@@ -13,28 +13,35 @@
             position: fixed;
             background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 15px;
-            border-radius: 8px;
-            font-family: monospace;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Arial', sans-serif;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         #info {
-            top: 10px;
-            left: 10px;
-            max-width: 300px;
+            top: 20px;
+            left: 20px;
+            max-width: 400px;
         }
         #controls {
-            top: 10px;
-            right: 10px;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
         #metrics {
-            bottom: 10px;
-            left: 10px;
-            min-width: 300px;
+            bottom: 20px;
+            left: 20px;
+            min-width: 350px;
         }
         .metric-group {
-            margin: 10px 0;
-            padding: 5px;
-            border-left: 3px solid #4CAF50;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
         }
         .metric-title {
             color: #4CAF50;
@@ -45,16 +52,21 @@
             color: #ddd;
         }
         button {
-            margin: 5px;
-            padding: 8px 12px;
-            background: #4CAF50;
+            padding: 10px 15px;
+            background: linear-gradient(145deg, #4CAF50, #45a049);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
         }
         button:hover {
-            background: #45a049;
+            background: linear-gradient(145deg, #45a049, #3d8b40);
+            transform: translateY(-1px);
         }
         .warning {
             color: #FFC107;
@@ -63,22 +75,25 @@
             color: #FF5722;
         }
         .chart-container {
-            height: 50px;
-            background: rgba(255, 255, 255, 0.1);
-            margin-top: 5px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 10px 0;
             position: relative;
         }
         .memory-bar {
             height: 100%;
-            background: #4CAF50;
+            background: linear-gradient(90deg, #4CAF50, #81C784);
             width: 0%;
-            transition: width 0.3s;
+            transition: width 0.5s ease;
         }
         .threshold-line {
             position: absolute;
             height: 100%;
             width: 2px;
             top: 0;
+            transition: left 0.5s ease;
         }
         .warning-line {
             background: #FFC107;
@@ -87,23 +102,25 @@
             background: #FF5722;
         }
         .test-group {
-            border-bottom: 1px solid #666;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
         }
         select {
-            background: #333;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
             color: white;
-            border: 1px solid #666;
-            padding: 5px;
-            border-radius: 4px;
-            margin-left: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            margin-left: 10px;
+            font-size: 0.9em;
         }
         #stressTest {
-            background: #f44336;
+            background: linear-gradient(145deg, #f44336, #d32f2f);
         }
         #stressTest:hover {
-            background: #d32f2f;
+            background: linear-gradient(145deg, #d32f2f, #b71c1c);
         }
         .test-progress {
             height: 2px;
@@ -112,51 +129,80 @@
             transition: width 0.3s;
             margin-top: 5px;
         }
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        .notification.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        .notification.info {
+            background: linear-gradient(145deg, #2196F3, #1976D2);
+        }
+        .notification.warning {
+            background: linear-gradient(145deg, #FFC107, #FFA000);
+        }
+        .notification.critical {
+            background: linear-gradient(145deg, #f44336, #d32f2f);
+        }
+        .notification.success {
+            background: linear-gradient(145deg, #4CAF50, #388E3C);
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="info" class="panel">
-        <h3>内存管理演示</h3>
-        <p>演示Three.js资源的内存管理和优化</p>
+        <h3>Memory Management Demo</h3>
+        <p>Demonstrates memory management and optimization of Three.js resources</p>
         <div class="metric-group">
-            <div class="metric-title">内存使用</div>
+            <div class="metric-title">Memory Usage</div>
             <div class="chart-container">
                 <div class="memory-bar"></div>
                 <div class="threshold-line warning-line"></div>
                 <div class="threshold-line critical-line"></div>
             </div>
-            <div>使用: <span id="memoryUsage" class="metric-value">0 MB</span></div>
-            <div>上限: <span id="memoryLimit" class="metric-value">512 MB</span></div>
+            <div>Used: <span id="memoryUsage" class="metric-value">0 MB</span></div>
+            <div>Limit: <span id="memoryLimit" class="metric-value">64 MB</span></div>
         </div>
     </div>
     <div id="controls" class="panel">
         <div class="test-group">
-            <button id="stressTest">压力测试</button>
+            <button id="stressTest">Stress Test</button>
             <select id="testType">
-                <option value="rapid">快速填充</option>
-                <option value="burst">突发填充</option>
-                <option value="mixed">混合资源</option>
+                <option value="rapid">Rapid Fill</option>
+                <option value="burst">Burst Fill</option>
+                <option value="mixed">Mixed Resources</option>
             </select>
         </div>
-        <button id="addGeometry">添加几何体</button>
-        <button id="addTexture">添加纹理</button>
-        <button id="addMaterial">添加材质</button>
-        <button id="cleanup">手动清理</button>
-        <button id="clearAll">清除全部</button>
+        <button id="addGeometry">Add Geometry</button>
+        <button id="addTexture">Add Texture</button>
+        <button id="addMaterial">Add Material</button>
+        <button id="cleanup">Manual Cleanup</button>
+        <button id="clearAll">Clear All</button>
     </div>
     <div id="metrics" class="panel">
         <div class="metric-group">
-            <div class="metric-title">资源统计</div>
-            <div>几何体: <span id="geometryCount" class="metric-value">0</span></div>
-            <div>纹理: <span id="textureCount" class="metric-value">0</span></div>
-            <div>材质: <span id="materialCount" class="metric-value">0</span></div>
-            <div>着色器: <span id="programCount" class="metric-value">0</span></div>
+            <div class="metric-title">Resource Statistics</div>
+            <div>Geometries: <span id="geometryCount" class="metric-value">0</span></div>
+            <div>Textures: <span id="textureCount" class="metric-value">0</span></div>
+            <div>Materials: <span id="materialCount" class="metric-value">0</span></div>
+            <div>Shaders: <span id="programCount" class="metric-value">0</span></div>
         </div>
         <div class="metric-group">
-            <div class="metric-title">缓存状态</div>
-            <div>缓存资源: <span id="cachedCount" class="metric-value">0</span></div>
-            <div>最后清理: <span id="lastCleanup" class="metric-value">-</span></div>
+            <div class="metric-title">Cache Status</div>
+            <div>Cached Resources: <span id="cachedCount" class="metric-value">0</span></div>
+            <div>Last Cleanup: <span id="lastCleanup" class="metric-value">-</span></div>
         </div>
     </div>
 
@@ -178,15 +224,18 @@
                 zoom: 15,
                 pitch: 45
             },
+            three: {
+                autoRender: false
+            },
             optimization: {
                 memoryManager: {
                     enabled: true,
                     maxCacheSize: 512,
-                    cleanupInterval: 30000,
+                    cleanupInterval: 5000,
                     disposalStrategy: 'lru',
                     autoCleanup: true,
-                    warningThreshold: 384,
-                    criticalThreshold: 480
+                    warningThreshold: 300,
+                    criticalThreshold: 400
                 }
             }
         };
@@ -195,7 +244,14 @@
             mapboxThree = new MapboxThree(config);
             await mapboxThree.init();
             
-            memoryManager = mapboxThree.getOptimizationManager().memoryManager;
+            const optimizationManager = mapboxThree.getOptimizationManager();
+            memoryManager = optimizationManager.getStrategy('memory');
+            
+            if (!memoryManager) {
+                console.error('Memory strategy not initialized');
+                return;
+            }
+            
             setupEventListeners();
             setupMemoryMonitoring();
             animate();
@@ -203,23 +259,32 @@
 
         function createRandomGeometry() {
             const geometries = [
-                () => new THREE.BoxGeometry(20, 20, 20, 32, 32, 32),
-                () => new THREE.SphereGeometry(15, 64, 64),
-                () => new THREE.TorusGeometry(10, 3, 32, 32),
-                () => new THREE.CylinderGeometry(5, 5, 20, 32, 32)
+                () => new THREE.BoxGeometry(20, 20, 20, 64, 64, 64),
+                () => new THREE.SphereGeometry(15, 128, 128),
+                () => new THREE.TorusGeometry(10, 3, 64, 64),
+                () => new THREE.CylinderGeometry(5, 5, 20, 64, 64),
+                () => new THREE.TorusKnotGeometry(10, 3, 128, 32),
+                () => new THREE.IcosahedronGeometry(10, 4)
             ];
             return geometries[Math.floor(Math.random() * geometries.length)]();
         }
 
         function createRandomTexture() {
-            const size = 512;
+            const sizes = [512, 1024, 2048];
+            const size = sizes[Math.floor(Math.random() * sizes.length)];
             const data = new Uint8Array(size * size * 4);
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = Math.random() * 255;
-                data[i + 1] = Math.random() * 255;
-                data[i + 2] = Math.random() * 255;
-                data[i + 3] = 255;
+            
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    const idx = (i * size + j) * 4;
+                    const pattern = Math.sin(i * 0.1) * Math.cos(j * 0.1) * 128 + 128;
+                    data[idx] = pattern * Math.random();
+                    data[idx + 1] = pattern * Math.random();
+                    data[idx + 2] = pattern * Math.random();
+                    data[idx + 3] = 255;
+                }
             }
+            
             const texture = new THREE.DataTexture(data, size, size);
             texture.needsUpdate = true;
             return texture;
@@ -258,7 +323,7 @@
             switch (type) {
                 case 'geometry': {
                     const geometry = createRandomGeometry();
-                    memoryManager.cacheGeometry(key, geometry);
+                    memoryManager.cacheResource(key, geometry, 'geometry');
                     const material = new THREE.MeshPhongMaterial({ 
                         color: Math.random() * 0xffffff,
                         wireframe: true
@@ -270,7 +335,7 @@
                 }
                 case 'texture': {
                     const texture = createRandomTexture();
-                    memoryManager.cacheTexture(key, texture);
+                    memoryManager.cacheResource(key, texture, 'texture');
                     const geometry = new THREE.PlaneGeometry(20, 20);
                     const material = new THREE.MeshBasicMaterial({ map: texture });
                     const mesh = new THREE.Mesh(geometry, material);
@@ -281,7 +346,7 @@
                 case 'material': {
                     const texture = createRandomTexture();
                     const material = createRandomMaterial(texture);
-                    memoryManager.cacheMaterial(key, material);
+                    memoryManager.cacheResource(key, material, 'material');
                     const geometry = new THREE.BoxGeometry(20, 20, 20);
                     const mesh = new THREE.Mesh(geometry, material);
                     mapboxThree.add(mesh, {}, { coordinates: position });
@@ -295,39 +360,32 @@
 
         function updateMetrics() {
             const stats = memoryManager.getMemoryStats();
-            const maxMemory = config.optimization.memoryManager.maxCacheSize;
-            const warningThreshold = config.optimization.memoryManager.warningThreshold;
-            const criticalThreshold = config.optimization.memoryManager.criticalThreshold;
-            
-            // 更新内存使用图表
-            const memoryPercent = (stats.totalMemory / (maxMemory * 1024 * 1024)) * 100;
-            const warningPercent = (warningThreshold / maxMemory) * 100;
-            const criticalPercent = (criticalThreshold / maxMemory) * 100;
-            
-            document.querySelector('.memory-bar').style.width = `${memoryPercent}%`;
-            document.querySelector('.warning-line').style.left = `${warningPercent}%`;
-            document.querySelector('.critical-line').style.left = `${criticalPercent}%`;
-            
-            // 更新指标
-            document.getElementById('memoryUsage').textContent = 
-                `${(stats.totalMemory / (1024 * 1024)).toFixed(2)} MB`;
-            document.getElementById('memoryLimit').textContent = `${maxMemory} MB`;
-            
             document.getElementById('geometryCount').textContent = stats.geometries;
             document.getElementById('textureCount').textContent = stats.textures;
             document.getElementById('materialCount').textContent = stats.materials;
             document.getElementById('programCount').textContent = stats.programs;
-            
-            document.getElementById('cachedCount').textContent = stats.cachedResources;
-            document.getElementById('lastCleanup').textContent = 
-                stats.lastCleanupTime ? new Date(stats.lastCleanupTime).toLocaleTimeString() : '-';
-            
-            // 更新状态类
+
+            document.getElementById('memoryUsage').textContent = 
+                `${(stats.totalMemory / (1024 * 1024)).toFixed(2)} MB`;
+            document.getElementById('memoryLimit').textContent = 
+                `${config.optimization.memoryManager.maxCacheSize} MB`;
+
+            // Update memory bar
+            const memoryPercent = (stats.totalMemory / (config.optimization.memoryManager.maxCacheSize * 1024 * 1024)) * 100;
+            document.querySelector('.memory-bar').style.width = `${memoryPercent}%`;
+
+            // Update warning and critical lines
+            const warningPercent = (config.optimization.memoryManager.warningThreshold / config.optimization.memoryManager.maxCacheSize) * 100;
+            const criticalPercent = (config.optimization.memoryManager.criticalThreshold / config.optimization.memoryManager.maxCacheSize) * 100;
+            document.querySelector('.warning-line').style.left = `${warningPercent}%`;
+            document.querySelector('.critical-line').style.left = `${criticalPercent}%`;
+
+            // Update status classes
             const memoryUsage = document.getElementById('memoryUsage');
             memoryUsage.className = 'metric-value';
-            if (stats.totalMemory / (1024 * 1024) > criticalThreshold) {
+            if (stats.totalMemory / (1024 * 1024) > config.optimization.memoryManager.criticalThreshold) {
                 memoryUsage.classList.add('critical');
-            } else if (stats.totalMemory / (1024 * 1024) > warningThreshold) {
+            } else if (stats.totalMemory / (1024 * 1024) > config.optimization.memoryManager.warningThreshold) {
                 memoryUsage.classList.add('warning');
             }
         }
@@ -336,14 +394,77 @@
             memoryManager.setWarningCallback((stats) => {
                 console.warn('Memory warning:', stats);
                 document.getElementById('info').classList.add('warning');
+                showNotification('Warning: Memory usage approaching threshold, automatic cleanup imminent', 'warning');
             });
             
             memoryManager.setCriticalCallback((stats) => {
                 console.error('Critical memory usage:', stats);
                 document.getElementById('info').classList.add('critical');
+                showNotification('Alert: Critical memory usage detected, performing emergency cleanup', 'critical');
                 memoryManager.cleanup();
             });
+
+            memoryManager.on('cleaned', () => {
+                showNotification('Automatic cleanup completed', 'success');
+                document.getElementById('info').classList.remove('warning', 'critical');
+                updateMetrics();
+            });
         }
+
+        // 添加通知系统
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            // 添加动画
+            setTimeout(() => notification.classList.add('show'), 10);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // 添加通知样式
+        const style = document.createElement('style');
+        style.textContent = `
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .notification.info {
+            background: linear-gradient(145deg, #2196F3, #1976D2);
+        }
+
+        .notification.warning {
+            background: linear-gradient(145deg, #FFC107, #FFA000);
+        }
+
+        .notification.critical {
+            background: linear-gradient(145deg, #f44336, #d32f2f);
+        }
+
+        .notification.success {
+            background: linear-gradient(145deg, #4CAF50, #388E3C);
+        }
+        `;
+        document.head.appendChild(style);
 
         function setupEventListeners() {
             document.getElementById('addGeometry').addEventListener('click', () => {
@@ -364,12 +485,10 @@
             });
             
             document.getElementById('clearAll').addEventListener('click', () => {
-                objects.forEach(obj => {
-                    mapboxThree.remove(obj);
-                });
-                objects.clear();
-                memoryManager.dispose();
-                updateMetrics();
+                if (memoryManager) {
+                    memoryManager.clear();
+                    updateMetrics();
+                }
             });
             
             document.getElementById('stressTest').addEventListener('click', () => {
@@ -394,19 +513,19 @@
         // 压力测试配置
         const STRESS_TEST_CONFIG = {
             rapid: {
-                batchSize: 50,        // 每批次创建数量
-                interval: 100,        // 批次间隔(ms)
-                totalBatches: 20      // 总批次数
+                batchSize: 10,
+                interval: 200,
+                totalBatches: 20
             },
             burst: {
-                batchSize: 200,       // 每次突发数量
-                interval: 1000,       // 突发间隔(ms)
-                burstCount: 5         // 突发次数
+                batchSize: 50,
+                interval: 2000,
+                burstCount: 6
             },
             mixed: {
-                geometryCount: 100,   // 几何体数量
-                textureSize: 512,     // 纹理大小
-                materialCount: 50     // 材质数量
+                geometryCount: 80,
+                textureSize: 512,
+                materialCount: 40
             }
         };
 

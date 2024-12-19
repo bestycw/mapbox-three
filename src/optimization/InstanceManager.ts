@@ -69,7 +69,16 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
         this.metrics.updateTime = performance.now() - startTime;
     }
 
+    protected onClear(): void {
+        // 清理临时数据
+        this.instanceGroups.forEach((group, groupId) => {
+            this.clearInstanceGroup(groupId);
+        });
+        this.updateMetrics();
+    }
+
     protected onDispose(): void {
+        // 释放资源
         this.instanceGroups.forEach(group => {
             this.disposeGroup(group);
         });
@@ -128,36 +137,6 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
         group.matrix = [];
         group.count = 0;
         group.dirty = false;
-    }
-
-    protected onClear(): void {
-        this.instanceGroups.forEach((group, groupId) => {
-            this.clearInstanceGroup(groupId);
-        });
-    }
-
-    protected updateMetrics(): void {
-        this.monitorOperation('updateMetrics', () => {
-            let totalInstances = 0;
-            let totalMemory = 0;
-            let drawCalls = 0;
-
-            this.instanceGroups.forEach(group => {
-                totalInstances += group.count;
-                totalMemory += this.calculateGroupMemory(group);
-                if (group.count > 0) drawCalls++;
-            });
-
-            this.metrics = {
-                ...this.metrics,
-                instanceCount: totalInstances,
-                batchCount: this.instanceGroups.size,
-                memoryUsage: totalMemory,
-                drawCalls,
-                operationCount: this.metrics.operationCount + 1,
-                lastUpdateTime: Date.now()
-            };
-        });
     }
 
     public addInstance(
@@ -431,5 +410,27 @@ export class InstanceManager extends BaseStrategy<InstanceConfig> {
 
     public getInstanceGroup(groupId: string): InstanceGroup | undefined {
         return this.instanceGroups.get(groupId);
+    }
+
+    protected updateMetrics(): void {
+        let totalInstances = 0;
+        let totalMemory = 0;
+        let drawCalls = 0;
+
+        this.instanceGroups.forEach(group => {
+            totalInstances += group.count;
+            totalMemory += this.calculateGroupMemory(group);
+            if (group.count > 0) drawCalls++;
+        });
+
+        this.metrics = {
+            ...this.metrics,
+            instanceCount: totalInstances,
+            batchCount: this.instanceGroups.size,
+            memoryUsage: totalMemory,
+            drawCalls,
+            operationCount: this.metrics.operationCount + 1,
+            lastUpdateTime: Date.now()
+        };
     }
 } 

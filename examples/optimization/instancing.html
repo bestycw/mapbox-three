@@ -472,30 +472,18 @@
         }
 
         function updateStats() {
-            const instanceStrategy = optimizationManager.getStrategy('instancing');
-            if (!instanceStrategy) return;
+            const instanceManager = optimizationManager.getStrategy('instancing');
+            if (!instanceManager) return;
 
-            const metrics = instanceStrategy.getMetrics();
+            const metrics = instanceManager.getMetrics();
             
-            // Update basic statistics
+            // 更新基本统计
             document.getElementById('instanceCount').textContent = metrics.instanceCount || 0;
             document.getElementById('batchCount').textContent = metrics.batchCount || 0;
             document.getElementById('memoryUsage').textContent = 
                 ((metrics.memoryUsage || 0) / (1024 * 1024)).toFixed(2);
             
-            // Update performance metrics
-            document.getElementById('updateTime').textContent = 
-                (metrics.updateTime || 0).toFixed(2) + 'ms';
-            document.getElementById('vertexCount').textContent = 
-                instances.size * 36;
-            document.getElementById('hitRate').textContent = 
-                ((metrics.hitRate || 0) * 100).toFixed(1) + '%';
-
-            // Update instance group info
-            document.getElementById('groupCount').textContent = metrics.batchCount || 0;
-            document.getElementById('avgPerGroup').textContent = 
-                Math.floor((metrics.instanceCount || 0) / (metrics.batchCount || 1));
-            document.getElementById('maxGroupSize').textContent = metrics.maxGroupSize || 0;
+            // 更新其他指标...
         }
 
         function animate() {
@@ -511,37 +499,10 @@
         }
 
         function clearAll() {
-            const instanceStrategy = optimizationManager.getStrategy('instancing');
-            if (!instanceStrategy) {
-                console.warn('Instance strategy not found');
-                return;
+            const instanceManager = optimizationManager.getStrategy('instancing');
+            if (instanceManager) {
+                instanceManager.clear(); // 使用基类定义的清理方法
             }
-
-            // Convert Set to Array to avoid modification during iteration
-            const instanceArray = Array.from(instances);
-            
-            // First remove all instances from the scene and strategy
-            instanceArray.forEach(instance => {
-                const groupId = instanceStrategy.getObjectGroupId(instance);
-                // console.log(groupId)
-                if (groupId) {
-                    instanceStrategy.removeInstance(instance, groupId);
-                    if (instance.parent) {
-                        instance.parent.remove(instance);
-                    }
-                }
-            });
-
-            // Then clear all groups
-            ['grid', 'spiral', 'random'].forEach(groupId => {
-                const group = instanceStrategy.getInstanceGroup(groupId);
-                if (group && group.mesh.parent) {
-                    group.mesh.parent.remove(group.mesh);
-                }
-                instanceStrategy.clearInstanceGroup(groupId);
-            });
-            
-            // Clear the instances set
             instances.clear();
             updateStats();
         }

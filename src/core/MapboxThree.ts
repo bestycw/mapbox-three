@@ -161,7 +161,7 @@ export class MapboxThree {
         }
     }
 
-    public render(): void {
+    public render(callback?: () => void): void {
         try {
             if (this.optimizationManager) {
                 this.optimizationManager.update(this.virtualCamera || this.camera);
@@ -176,6 +176,9 @@ export class MapboxThree {
 
             if (this.config.three?.renderMode === 'auto') {
                 this.map.triggerRepaint();
+            }
+            if(callback){
+                callback();
             }
         } catch (error) {
             this.errorHandler.handleError(error as Error, {

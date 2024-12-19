@@ -87,11 +87,16 @@ export class ObjectPoolManager extends BaseStrategy<ObjectPoolConfig> {
     }
 
     protected onDispose(): void {
+        this.pools.forEach((pool, key) => {
+            pool.active.forEach(obj => this.disposeObject(obj));
+            pool.inactive.forEach(obj => this.disposeObject(obj));
+        });
         this.pools.clear();
     }
 
     protected onClear(): void {
         this.clearAllPools();
+        this.updateMetrics();
     }
 
     protected updateMetrics(): void {

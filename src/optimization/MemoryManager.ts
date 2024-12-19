@@ -1,7 +1,15 @@
 import * as THREE from 'three';
-import { BaseConfig, MemoryStats, MemoryMetrics } from '../config/types';
+import { BaseConfig, MemoryStats, MemoryMetrics, ResourceType } from '../config/types';
 import { defaultConfig } from '../config/defaults';
 import { BaseStrategy } from './BaseStrategy';
+
+interface CachedResource {
+    resource: any;
+    type: ResourceType;
+    lastAccessed: number;
+    size: number;
+}
+
 /**
  * 内存管理器配置接口
  */
@@ -21,6 +29,8 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     private warningCallback?: (stats: MemoryStats) => void;
     private criticalCallback?: (stats: MemoryStats) => void;
     private lastCleanupTime: number = 0;
+    private cache: Map<string, CachedResource> = new Map();
+
     protected metrics: Required<MemoryMetrics> = {
         operationCount: 0,
         lastUpdateTime: 0,
@@ -60,26 +70,35 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     }
 
     protected onUpdate(): void {
-        this.checkMemoryUsage();
-    }
-
-    protected onDispose(): void {
-        // Clean up any monitoring intervals
+        if (this.config.autoCleanup) {
+            this.checkMemoryUsage();
+        }
     }
 
     protected onClear(): void {
-        this.cleanup();
+        // 清理临时数据和缓存
+        this.cache.clear();
+        this.updateMetrics();
+    }
+
+    protected onDispose(): void {
+        // 释放所有资源
+        this.cache.forEach((cached, key) => {
+            this.removeCachedResource(key);
+        });
+        this.renderer.dispose();
+        THREE.Cache.clear();
     }
 
     protected updateMetrics(): void {
-        const info = this.renderer.info;
         const memory = this.getMemoryInfo();
-
         this.metrics = {
             ...this.metrics,
             operationCount: this.metrics.operationCount + 1,
             lastUpdateTime: Date.now(),
-            memoryUsage: memory.totalJSHeapSize
+            memoryUsage: memory.totalJSHeapSize,
+            totalMemory: this.calculateTotalMemoryUsage(),
+            maxMemory: memory.jsHeapSizeLimit
         };
     }
 
@@ -98,41 +117,24 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     }
 
     /**
-     * 检查内存使��情况
+     * 检查内存使用情况
      */
     private checkMemoryUsage(): void {
-        const stats = this.getMemoryStats();
-        const usageRatio = stats.totalJSHeapSize / stats.jsHeapSizeLimit;
-
-        if (usageRatio >= this.config.criticalThreshold) {
-            this.criticalCallback?.(stats);
-            if (this.config.autoCleanup) {
-                this.cleanup();
-            }
-        } else if (usageRatio >= this.config.warningThreshold) {
-            this.warningCallback?.(stats);
+        const memoryMB = this.metrics.memoryUsage / (1024 * 1024);
+        
+        if (memoryMB > this.config.criticalThreshold) {
+            this.emit('critical', this.getMemoryStats());
+            this.cleanup();
+        } else if (memoryMB > this.config.warningThreshold) {
+            this.emit('warning', this.getMemoryStats());
         }
-
-        this.updateMetrics();
     }
 
     /**
      * 获取内存统计信息
      */
-    public getMemoryStats(): MemoryStats {
-        const info = this.renderer.info;
-        const memory = this.getMemoryInfo();
-
-        return {
-            geometries: info.memory.geometries,
-            textures: info.memory.textures,
-            materials: 0, // Need to implement material counting
-            programs: info.programs?.length || 0,
-            totalJSHeapSize: memory.totalJSHeapSize,
-            usedJSHeapSize: memory.usedJSHeapSize,
-            jsHeapSizeLimit: memory.jsHeapSizeLimit,
-            lastCleanupTime: this.lastCleanupTime
-        };
+    public getMemoryStats(): Required<MemoryMetrics> {
+        return { ...this.metrics };
     }
 
     /**
@@ -158,21 +160,11 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
      * 清理资源
      */
     public cleanup(): void {
-        const now = Date.now();
-        if (now - this.lastCleanupTime < this.config.cleanupInterval) {
+        if (Date.now() - this.lastCleanupTime < this.config.cleanupInterval) {
             return;
         }
-
-        // 清理Three.js资源
-        this.renderer.dispose();
-        THREE.Cache.clear();
-
-        // 强制垃圾回收（如果可用）
-        if (window.gc) {
-            window.gc();
-        }
-
-        this.lastCleanupTime = now;
+        this.onDispose();  // 复用 onDispose 方法
+        this.lastCleanupTime = Date.now();
         this.updateMetrics();
         this.emit('cleaned');
     }
@@ -180,7 +172,7 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     /**
      * 释放特定资源
      */
-    public disposeResources(resources: {
+    public disposeSpecificResources(resources: {
         geometries?: THREE.BufferGeometry[];
         materials?: THREE.Material[];
         textures?: THREE.Texture[];
@@ -218,4 +210,108 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     //     console.error(`[MemoryManager] ${message}`, error);
     //     this.emit('error', { message, error });
     // }
+
+    // 资源缓存方法
+    public cacheResource(key: string, resource: any, type: ResourceType): void {
+        const size = this.estimateResourceSize(resource, type);
+        
+        if (this.shouldCleanup()) {
+            this.cleanup();
+        }
+
+        this.cache.set(key, {
+            resource,
+            type,
+            lastAccessed: Date.now(),
+            size
+        });
+
+        this.updateResourceCount(type, 1);
+        this.updateMetrics();
+        this.emit('resourceAdded', key, type);
+    }
+
+    public getCachedResource(key: string): any {
+        const cached = this.cache.get(key);
+        if (cached) {
+            cached.lastAccessed = Date.now();
+            return cached.resource;
+        }
+        return null;
+    }
+
+    public removeCachedResource(key: string): void {
+        const cached = this.cache.get(key);
+        if (cached) {
+            this.updateResourceCount(cached.type, -1);
+            if (cached.resource.dispose) {
+                cached.resource.dispose();
+            }
+            this.cache.delete(key);
+            this.updateMetrics();
+            this.emit('resourceRemoved', key, cached.type);
+        }
+    }
+
+    // 资源大小估算
+    private estimateResourceSize(resource: any, type: ResourceType): number {
+        switch (type) {
+            case 'geometry':
+                return this.estimateGeometrySize(resource);
+            case 'texture':
+                return this.estimateTextureSize(resource);
+            case 'material':
+                return 1024; // 估计材质大小1KB
+            case 'program':
+                return 2048; // 估计着色器程序大小为2KB
+            default:
+                return 512;
+        }
+    }
+
+    private estimateGeometrySize(geometry: THREE.BufferGeometry): number {
+        let size = 0;
+        for (const attribute of Object.values(geometry.attributes)) {
+            size += (attribute as THREE.BufferAttribute).array.byteLength;
+        }
+        return size;
+    }
+
+    private estimateTextureSize(texture: THREE.Texture): number {
+        const width = texture.image?.width || 0;
+        const height = texture.image?.height || 0;
+        return width * height * 4; // 假设每个像素4字节(RGBA)
+    }
+
+    // 缓存管理
+    private shouldCleanup(): boolean {
+        return this.metrics.memoryUsage > this.config.warningThreshold * 1024 * 1024;
+    }
+
+    private updateResourceCount(type: ResourceType, delta: number): void {
+        switch (type) {
+            case 'geometry':
+                this.metrics.geometries += delta;
+                break;
+            case 'texture':
+                this.metrics.textures += delta;
+                break;
+            case 'material':
+                this.metrics.materials += delta;
+                break;
+            case 'program':
+                this.metrics.programs += delta;
+                break;
+        }
+        this.metrics.totalMemory = this.calculateTotalMemoryUsage();
+    }
+
+    // 其他辅助方法
+    private calculateTotalMemoryUsage(): number {
+        let total = 0;
+        this.cache.forEach(cached => {
+            total += cached.size;
+        });
+        return total;
+    }
 } 

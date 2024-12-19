@@ -91,8 +91,15 @@ export class LODManager extends BaseStrategy<LODConfig> {
         });
     }
 
+    protected onClear(): void {
+        // 清理临时数据
+        this.clearCache();  // 复用现有方法
+        this.lodObjects.clear();
+        this.updateMetrics();
+    }
+
     protected onDispose(): void {
-        this.clearCache();
+        // 释放资源
         this.lodObjects.forEach(lod => {
             lod.traverse(child => {
                 if (child instanceof THREE.Mesh) {
@@ -104,11 +111,7 @@ export class LODManager extends BaseStrategy<LODConfig> {
             });
         });
         this.lodObjects.clear();
-    }
-
-    protected onClear(): void {
         this.clearCache();
-        this.lodObjects.clear();
     }
 
     protected updateMetrics(): void {
@@ -351,7 +354,7 @@ export class LODManager extends BaseStrategy<LODConfig> {
         const newIndices: number[] = [];
         const oldToNewIndex = new Map();
 
-        // 只保留选���的顶点
+        // 只保留选的顶点
         selectedVertices.forEach(oldIndex => {
             const newIndex = newPositions.length / 3;
             oldToNewIndex.set(oldIndex, newIndex);

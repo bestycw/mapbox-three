@@ -85,7 +85,7 @@
         <button id="addDefaultLOD">Add Default LOD Box</button>
         <button id="addCustomLOD">Add Custom LOD Sphere</button>
         <button id="addMultiLOD">Add Multi-Geometry LOD</button>
-        <button id="clearObjects">Clear All Objects</button>
+        <button id="clearAll">Clear All Objects</button>
     </div>
 
     <script type="module">
@@ -146,7 +146,7 @@
             startPerformanceMonitoring();
         }
 
-        // 添加默认LOD盒子
+        // 添加���LOD盒子
         function addDefaultLOD() {
             const geometry = new THREE.BoxGeometry(200, 200, 200, 64, 64, 64);
             const material = new THREE.MeshPhongMaterial({ 
@@ -224,8 +224,14 @@
 
         // 清除所有对象
         function clearObjects() {
-            const objects = [...mapboxThree.world.children];
-            objects.forEach(obj => mapboxThree.remove(obj));
+            const lodManager = mapboxThree.getOptimizationManager().getStrategy('lod');
+            if (lodManager) {
+                lodManager.clear(); // 使用基类定义的清理方法
+            }
+            // 更新UI显示
+            document.getElementById('vertices').textContent = '0';
+            document.getElementById('detail').textContent = '100';
+            document.getElementById('distance').textContent = '0';
         }
 
         // 设置LOD钩子以更新UI
@@ -302,10 +308,26 @@
         document.getElementById('addDefaultLOD').addEventListener('click', addDefaultLOD);
         document.getElementById('addCustomLOD').addEventListener('click', addCustomLOD);
         document.getElementById('addMultiLOD').addEventListener('click', addMultiLOD);
-        document.getElementById('clearObjects').addEventListener('click', clearObjects);
+        document.getElementById('clearAll').addEventListener('click', clearObjects);
 
         // 启动应用
         init();
+
+        function updateStats() {
+            const lodManager = mapboxThree.getOptimizationManager().getStrategy('lod');
+            if (!lodManager) return;
+
+            const stats = lodManager.getMetrics();
+            
+            // 更新UI显示
+            document.getElementById('vertices').textContent = stats.activeObjects.toString();
+            document.getElementById('detail').textContent = '100';
+            document.getElementById('distance').textContent = '0';
+            
+            // 更新内存使用
+            const memoryInMB = (stats.memoryUsage / (1024 * 1024)).toFixed(2);
+            document.getElementById('memory').textContent = memoryInMB;
+        }
     </script>
 </body>
 </html>

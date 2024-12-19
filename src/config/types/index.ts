@@ -144,7 +144,7 @@ export interface BaseConfig {
     updateInterval?: number;        // 更新间隔(ms) - 默认 16
     autoCleanup?: boolean;         // 是否自动清理 - 默认 true
     cleanupInterval?: number;      // 清理间隔(ms) - 默认 60000
-    warningThreshold?: number;     // 警告阈值(0-1) - ��认 0.7
+    warningThreshold?: number;     // 警告阈值(0-1) - 默认 0.7
     criticalThreshold?: number;    // 临界阈值(0-1) - 默认 0.9
     maxSize?: number;              // 最大大小 - 默认 1000
     debugMode?: boolean;           // 调试模式 - 默认 false
@@ -212,7 +212,7 @@ export interface LODMetrics extends BaseMetrics {
  */
 export interface ObjectPoolConfig extends BaseConfig {
     maxPoolSize?: number;          // 每个池的最大对象数量 - 默认 10000
-    defaultPoolSize?: number;      // 默认池大小 - 默认 1000
+    defaultPoolSize?: number;      // 默认池大小 - ���认 1000
     shrinkThreshold?: number;      // 收缩阈值 (0-1) - 默认 0.3
     prewarmPools?: boolean;        // 是否预热池 - 默认 false
     predictiveScaling?: boolean;   // 是否启用预测性缩放 - 默认 false
@@ -245,7 +245,7 @@ export interface MemoryConfig extends BaseConfig {
 }
 
 /**
- * ���存管理指标接口 - 所有字段可选
+ * 内存管理指标接口 - 所有字段可选
  */
 export interface MemoryMetrics extends BaseMetrics {
     geometries?: number;         // 几何体数量
@@ -293,7 +293,7 @@ export interface OptimizationConfig {
 }
 
 /**
- * 用户数据接口
+ * ��户数据接口
  */
 export interface UserData {
   /** 单位类型 */
@@ -508,3 +508,8 @@ export interface OptimizationOptions {
         maxSize?: number;
     };
 }
+
+/**
+ * 资源类型
+ */
+export type ResourceType = 'geometry' | 'texture' | 'material' | 'program';
