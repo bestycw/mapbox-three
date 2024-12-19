@@ -235,7 +235,7 @@ export class OptimizationManager extends EventEmitter {
                         // strategy.adjustQualityLevel('down');
                     }
                     if (strategy instanceof MemoryManager) {
-                        strategy.cleanup();
+                        strategy.optimizeMemory();
                     }
                 });
             }
@@ -245,7 +245,7 @@ export class OptimizationManager extends EventEmitter {
             // 触发内存清理
             const memoryStrategy = this.getStrategy<MemoryManager>('memory');
             if (memoryStrategy) {
-                memoryStrategy.cleanup();
+                memoryStrategy.optimizeMemory();
             }
         });
     }

@@ -429,7 +429,7 @@
                     document.getElementById('spawnRateValue').textContent = 20;
                     setInterval(() => {
                         if (particles.size > 1000) {
-                            objectPoolStrategy?.cleanup();
+                            objectPoolStrategy?.optimizePools();
                         }
                     }, 1000);
                     break;
@@ -465,9 +465,9 @@
             updateParticles(deltaTime);
             updateStats();
 
-            // 定期清理
+            // 定期优化
             const objectPoolStrategy = optimizationManager.getStrategy('objectPool');
-            objectPoolStrategy?.cleanup();
+            objectPoolStrategy?.optimizePools();
         }
 
         function setupEventListeners() {

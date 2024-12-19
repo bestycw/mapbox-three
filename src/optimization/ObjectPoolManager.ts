@@ -78,7 +78,7 @@ export class ObjectPoolManager extends BaseStrategy<ObjectPoolConfig> {
 
     protected onInitialize(): void {
         if (this.config.cleanupInterval) {
-            setInterval(() => this.cleanup(), this.config.cleanupInterval);
+            setInterval(() => this.optimizePools(), this.config.cleanupInterval);
         }
     }
 
@@ -267,9 +267,10 @@ export class ObjectPoolManager extends BaseStrategy<ObjectPoolConfig> {
     }
 
     /**
-     * 清理未使用的对象
+     * 优化对象池
+     * 清理长时间未使用的对象池并收缩过大的池
      */
-    public cleanup(): void {
+    public optimizePools(): void {
         const now = Date.now();
         this.pools.forEach((pool, key) => {
             // 检查池是否长时间未使用

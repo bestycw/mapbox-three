@@ -401,7 +401,7 @@
                 console.error('Critical memory usage:', stats);
                 document.getElementById('info').classList.add('critical');
                 showNotification('Alert: Critical memory usage detected, performing emergency cleanup', 'critical');
-                memoryManager.cleanup();
+                memoryManager.optimizeMemory();
             });
 
             memoryManager.on('cleaned', () => {
@@ -480,14 +480,17 @@
             });
             
             document.getElementById('cleanup').addEventListener('click', () => {
-                memoryManager.cleanup();
+                memoryManager.optimizeMemory();
                 updateMetrics();
             });
             
             document.getElementById('clearAll').addEventListener('click', () => {
                 if (memoryManager) {
+                    // 清空objects集合
+                    objects.clear();
                     memoryManager.clear();
                     updateMetrics();
+                    showNotification('All resources cleared', 'success');
                 }
             });
             

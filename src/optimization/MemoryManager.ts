@@ -31,6 +31,21 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     private lastCleanupTime: number = 0;
     private cache: Map<string, CachedResource> = new Map();
 
+    // 添加资源优先级定义
+    private resourcePriority: Record<ResourceType, number> = {
+        geometry: 3,  // 几何体优先级最高
+        texture: 2,   // 纹理次之
+        material: 1,  // 材质再次
+        program: 0    // 着色器程序最低
+    };
+
+    // 添加资源使用追踪
+    private resourceUsage: Map<string, {
+        lastAccessed: number;
+        accessCount: number;
+        isEssential: boolean;  // 是否是必需资源
+    }> = new Map();
+
     protected metrics: Required<MemoryMetrics> = {
         operationCount: 0,
         lastUpdateTime: 0,
@@ -76,9 +91,32 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     }
 
     protected onClear(): void {
-        // 清理临时数据和缓存
-        this.cache.clear();
+        // 清理所有非必需资源
+        const resources = Array.from(this.cache.entries());
+        for (const [key, resource] of resources) {
+            const usage = this.resourceUsage.get(key);
+            if (!usage?.isEssential) {
+                // 如果是THREE.Object3D的实例，从场景中移除
+                console.log('resource', resource);
+                if (resource.resource instanceof THREE.Object3D) {
+                    resource.resource.parent?.remove(resource.resource);
+                }
+                this.removeCachedResource(key);
+            }
+        }
+        
+        // 重置资源使用统计
+        this.resourceUsage.clear();
+        
+        // 更新指标
         this.updateMetrics();
+        
+        // 触发Three.js的内存释放
+        THREE.Cache.clear();
+        this.renderer.dispose();
+        
+        // 发出清理完成事件
+        this.emit('cleared');
     }
 
     protected onDispose(): void {
@@ -124,10 +162,26 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
         
         if (memoryMB > this.config.criticalThreshold) {
             this.emit('critical', this.getMemoryStats());
-            this.cleanup();
+            this.optimizeMemory();
         } else if (memoryMB > this.config.warningThreshold) {
             this.emit('warning', this.getMemoryStats());
         }
+    }
+
+    /**
+     * 优化内存使用
+     * 根据资源优先级和使用情况智能释放资源
+     */
+    public optimizeMemory(): void {
+        if (Date.now() - this.lastCleanupTime < this.config.cleanupInterval) {
+            return;
+        }
+
+        this.smartCleanup();
+        
+        this.lastCleanupTime = Date.now();
+        this.updateMetrics();
+        this.emit('memoryOptimized');
     }
 
     /**
@@ -157,16 +211,69 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
     }
 
     /**
-     * 清理资源
+     * 智能清理策略
      */
-    public cleanup(): void {
-        if (Date.now() - this.lastCleanupTime < this.config.cleanupInterval) {
-            return;
+    private smartCleanup(): void {
+        const now = Date.now();
+        const resources: Array<[string, CachedResource]> = Array.from(this.cache.entries());
+        
+        // 按清理优先级排序
+        resources.sort((a, b) => {
+            const usageA = this.resourceUsage.get(a[0]);
+            const usageB = this.resourceUsage.get(b[0]);
+            
+            // 必需资源排在最后
+            if (usageA?.isEssential !== usageB?.isEssential) {
+                return (usageA?.isEssential ? 1 : 0) - (usageB?.isEssential ? 1 : 0);
+            }
+
+            // 优先级不同，按优先级排序
+            const priorityDiff = this.resourcePriority[b[1].type] - this.resourcePriority[a[1].type];
+            if (priorityDiff !== 0) return priorityDiff;
+
+            // 优先级相同，考虑使用频率和最后访问时间
+            const scoreA = this.calculateResourceScore(a[0], usageA);
+            const scoreB = this.calculateResourceScore(b[0], usageB);
+            return scoreA - scoreB;
+        });
+
+        // 计算需要释放的内存量
+        const targetMemory = this.config.warningThreshold * 0.8 * 1024 * 1024; // 目标是警告阈值的80%
+        let currentMemory = this.calculateTotalMemoryUsage();
+
+        // 逐个清理，直到达到目标内存
+        for (const [key, resource] of resources) {
+            if (currentMemory <= targetMemory) break;
+            console.log('resource', resource);
+            const usage = this.resourceUsage.get(key);
+            if (usage?.isEssential) continue;  // 跳过必需资源
+
+            currentMemory -= resource.size;
+            this.removeCachedResource(key);
         }
-        this.onDispose();  // 复用 onDispose 方法
-        this.lastCleanupTime = Date.now();
-        this.updateMetrics();
-        this.emit('cleaned');
+    }
+
+    /**
+     * 计算资源得分（分数越低越容易被清理）
+     */
+    private calculateResourceScore(key: string, usage?: { lastAccessed: number; accessCount: number }): number {
+        if (!usage) return -Infinity;
+
+        const now = Date.now();
+        const timeFactor = Math.exp(-(now - usage.lastAccessed) / (24 * 60 * 60 * 1000)); // 时间衰减因子
+        const usageFactor = Math.log(usage.accessCount + 1); // 使用频率因子
+
+        return timeFactor * usageFactor;
+    }
+
+    /**
+     * 标记必需资源
+     */
+    public markEssentialResource(key: string, isEssential: boolean = true): void {
+        const usage = this.resourceUsage.get(key);
+        if (usage) {
+            usage.isEssential = isEssential;
+        }
     }
 
     /**
@@ -216,7 +323,7 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
         const size = this.estimateResourceSize(resource, type);
         
         if (this.shouldCleanup()) {
-            this.cleanup();
+            this.optimizeMemory();
         }
 
         this.cache.set(key, {
@@ -231,10 +338,22 @@ export class MemoryManager extends BaseStrategy<MemoryConfig> {
         this.emit('resourceAdded', key, type);
     }
 
+    /**
+     * 重写资源访问方法
+     */
     public getCachedResource(key: string): any {
         const cached = this.cache.get(key);
         if (cached) {
-            cached.lastAccessed = Date.now();
+            // 更新使用统计
+            const usage = this.resourceUsage.get(key) || {
+                lastAccessed: Date.now(),
+                accessCount: 0,
+                isEssential: false
+            };
+            usage.lastAccessed = Date.now();
+            usage.accessCount++;
+            this.resourceUsage.set(key, usage);
+
             return cached.resource;
         }
         return null;

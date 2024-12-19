@@ -6,7 +6,6 @@ import { Coordinates, ExtendedObject3D, UserData } from '../config/types/index';
  * 增强 Obj 对象，添加地理相关的方法
  */
 export function enhancedObj(obj: ExtendedObject3D): ExtendedObject3D {
-    console.log(obj)
     const enhanced = obj;
     // obj.userData.isUser = true;
     obj.userData.isUser = true;
